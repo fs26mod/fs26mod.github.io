@@ -295,6 +295,17 @@ body.has-slider .search-wrap{margin-top:16px!important}
 .active-cat button{background:var(--olive);color:#fff;border:0;border-radius:20px;padding:8px 14px;font-weight:800;cursor:pointer}
 @media(max-width:620px){#navCatLink{display:none}nav.cats-open .nav-sub{display:none!important}nav.cats-open .nav-cats{display:block}}
 .mods-section{margin-bottom:36px}
+.mod-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0 10px;font-size:14px;flex-wrap:wrap}
+.mod-meta .by{background:none;border:0;color:#9be22b;font-weight:700;cursor:pointer;padding:0;font-size:14px}
+.stars{display:flex;gap:2px;align-items:center}
+.stars button{background:none;border:0;font-size:24px;color:#4b5a4e;cursor:pointer;padding:0 1px}
+.stars button.on{color:#ffc933}
+.stars small{color:#9aa79d;margin-left:6px}
+.card-actions{display:flex;gap:8px;margin-bottom:8px}
+.save-btn,.pick-btn{flex:1;background:#142016;color:#d7f5b0;border:1px solid #2f4a2f;border-radius:9px;padding:10px;font-weight:800;cursor:pointer}
+.save-btn.on{background:#9be22b;color:#10200a}
+.pick-btn{display:none}body.is-admin .pick-btn{display:block}
+.pick-badge{position:absolute;right:12px;bottom:12px;background:#ffc933;color:#241a00;border-radius:8px;padding:4px 8px;font-size:12px;font-style:normal;font-weight:900}
 </style>
 </head>
 <body>
@@ -329,6 +340,8 @@ body.has-slider .search-wrap{margin-top:16px!important}
     <div id="profileMenu" hidden>
       <p id="profileEmail"></p>
       <button id="openUpload" hidden>Mod Yükle</button>
+      <button id="mySaved">🔖 Kaydettiklerim</button>
+      <button id="myMods">📦 Modlarım</button>
       <button id="logoutBtn">Çıkış Yap</button>
     </div>
   </div>
@@ -345,6 +358,7 @@ body.has-slider .search-wrap{margin-top:16px!important}
       <button type="submit" id="authSubmit">Giriş Yap</button>
     </form>
 
+    <p><a href="#" id="forgotLink" style="font-size:14px;color:#9be22b">Şifremi unuttum</a></p>
     <p id="authMessage"></p>
   </div>
 </div>
@@ -361,8 +375,12 @@ body.has-slider .search-wrap{margin-top:16px!important}
       <select id="upCategory" style="display:none"></select>
       <label class="up-label" for="upImage">Mod fotoğrafları (en az 4, en fazla 10)</label>
       <input id="upImage" type="file" accept="image/*" multiple>
-      <label class="up-label" for="upFile">Mod dosyası (.zip)</label>
+      <div class="up-label">Mod nasıl eklenecek?</div>
+      <select id="upMode"><option value="file">Dosya yükle (50 MB'a kadar)</option><option value="link">Link yapıştır (büyük modlar)</option></select>
+      <label class="up-label" for="upFile" id="upFileLabel">Mod dosyası (.zip)</label>
       <input id="upFile" type="file" accept=".zip" required>
+      <input id="upLink" type="url" placeholder="https://drive.google.com/..." style="display:none">
+      <p id="linkNote" class="up-note" style="display:none">Modu Google Drive, Mediafire veya Mega'ya yükle, herkese açık indirme linkini buraya yapıştır. Oyun sürümünü ve kategoriyi aşağıdan seç.</p>
       <p id="catAuto" class="up-note" style="display:none"></p>
       <button type="submit" id="upSubmit">Yükle</button>
     </form>
@@ -464,7 +482,9 @@ function catInfo(value) {
   }
   return { main: "", sub: "" };
 }
-let subCategory = 'Tümü';
+let subCategory = 'Tümü', sortMode = 'new', brandFilter = 'Tümü';
+let savedSet = new Set(), ownerFilter = null, ownerName = '', savedOnly = false, currentUid = null;
+const RT = {};
 const catBox = document.getElementById('categories');
 const subBox = document.getElementById('subCats');
 catBox.innerHTML = '<button class="cat selected" data-category="Tümü"><small class="cat-count">0 mod</small><strong>Tümü</strong><b>✦</b></button>' +
@@ -560,14 +580,18 @@ function filterMods() {
     const matchesCat =
       category === 'Tümü' ||
       (info.main === category && (subCategory === 'Tümü' || info.sub === subCategory));
+    const matchesOwner = (!ownerFilter || card.dataset.owner === ownerFilter) && (!savedOnly || savedSet.has(card.dataset.id));
+    const matchesBrand = brandFilter === 'Tümü' || card.dataset.brand === brandFilter;
     const matchesPlatform =
       platform === 'Tümü' || card.dataset.platform === platform;
     const matchesGame =
       game === 'Tümü' || card.dataset.game === game;
 
-    if (matchesText && matchesCat && matchesPlatform && matchesGame) matched.push(card);
+    if (matchesText && matchesCat && matchesPlatform && matchesGame && matchesBrand && matchesOwner) matched.push(card);
   });
 
+  if (sortMode === 'trend') matched.sort((a, b) => ((modData[b.dataset.id] || {}).downloads || 0) - ((modData[a.dataset.id] || {}).downloads || 0));
+  matched.sort((a, b) => (b.dataset.featured === '1') - (a.dataset.featured === '1'));
   const shown = matched.length;
   currentPage = 1;
   renderPage(false);
@@ -660,6 +684,20 @@ document.getElementById("registerBtn").addEventListener("click", () => {
   authModal.hidden = false;
 });
 
+function syncAuth() {
+  authEmail.style.display = authMode === "recover" ? "none" : "";
+  authEmail.required = authMode !== "recover";
+  authPassword.style.display = authMode === "forgot" ? "none" : "";
+  authPassword.required = authMode !== "forgot";
+  authPassword.placeholder = authMode === "recover" ? "Yeni şifren (en az 8 karakter)" : "Şifren";
+  document.getElementById("forgotLink").hidden = authMode !== "login";
+}
+["loginBtn", "registerBtn"].forEach(id => document.getElementById(id).addEventListener("click", syncAuth));
+document.getElementById("forgotLink").addEventListener("click", (e) => {
+  e.preventDefault(); authMode = "forgot";
+  authTitle.textContent = "Şifremi Unuttum"; authSubmit.textContent = "Sıfırlama bağlantısı gönder";
+  authMessage.textContent = "E-posta adresini yaz, sana şifre sıfırlama bağlantısı gönderelim."; syncAuth();
+});
 document.getElementById("closeAuth").addEventListener("click", () => {
   authModal.hidden = true;
 });
@@ -675,17 +713,18 @@ authForm.addEventListener("submit", async (event) => {
   authMessage.textContent = "İşlem yapılıyor...";
 
   try {
-    const result = authMode === "register"
+    let result;
+    if (authMode === "forgot") result = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+    else if (authMode === "recover") result = await supabaseClient.auth.updateUser({ password });
+    else result = authMode === "register"
       ? await supabaseClient.auth.signUp({ email, password })
       : await supabaseClient.auth.signInWithPassword({ email, password });
 
     if (result.error) throw result.error;
 
-    authMessage.textContent = authMode === "register"
-      ? "Kayıt başarılı! E-postanı kontrol et."
-      : "Giriş başarılı!";
+    authMessage.textContent = { register: "Kayıt başarılı! E-postanı kontrol et.", forgot: "Sıfırlama bağlantısı e-postana gönderildi. Gelen kutusu ve spam klasörüne bak.", recover: "Şifren değiştirildi!" }[authMode] || "Giriş başarılı!";
 
-    if (authMode === "login") {
+    if (authMode === "login" || authMode === "recover") {
       setTimeout(() => authModal.hidden = true, 1200);
     }
   } catch (error) {
@@ -708,6 +747,7 @@ const registerBtnEl = document.getElementById("registerBtn");
 
 function renderAccount(session) {
   const user = session && session.user;
+  const prevUid = currentUid; currentUid = user ? user.id : null; if (prevUid !== currentUid) loadExtras();
   const wasAdmin = isAdmin;
   isAdmin = !!user && (user.email || "").toLowerCase() === ADMIN_EMAIL;
   document.body.classList.toggle("is-admin", isAdmin);
@@ -734,7 +774,13 @@ document.addEventListener("click", (e) => {
 
 if (supabaseClient) {
   supabaseClient.auth.getSession().then(({ data }) => renderAccount(data.session));
-  supabaseClient.auth.onAuthStateChange((_event, session) => renderAccount(session));
+  supabaseClient.auth.onAuthStateChange((event, session) => {
+    renderAccount(session);
+    if (event === "PASSWORD_RECOVERY") {
+      authMode = "recover"; authTitle.textContent = "Yeni Şifre Belirle"; authSubmit.textContent = "Şifreyi Kaydet";
+      authMessage.textContent = ""; authModal.hidden = false; syncAuth();
+    }
+  });
   logoutBtn.addEventListener("click", () => supabaseClient.auth.signOut());
 }
 
@@ -791,6 +837,53 @@ slidesEl.addEventListener("click", e => {
 });
 
 const modGrid = document.getElementById("modGrid");
+async function loadExtras() {
+  if (!supabaseClient) return;
+  const r = await supabaseClient.from("ratings").select("mod_id,stars,user_id");
+  Object.keys(RT).forEach(k => delete RT[k]);
+  (r.data || []).forEach(x => { const o = RT[x.mod_id] || (RT[x.mod_id] = { sum: 0, n: 0, mine: 0 }); o.sum += x.stars; o.n++; if (x.user_id === currentUid) o.mine = x.stars; });
+  savedSet = new Set();
+  if (currentUid) { const sv = await supabaseClient.from("saved_mods").select("mod_id").eq("user_id", currentUid); (sv.data || []).forEach(x => savedSet.add(String(x.mod_id))); }
+  refreshExtras();
+}
+function refreshExtras() {
+  document.querySelectorAll(".stars[data-r]").forEach(el => {
+    const o = RT[el.dataset.r] || { sum: 0, n: 0, mine: 0 }, avg = o.n ? o.sum / o.n : 0, shown = o.mine || Math.round(avg);
+    el.innerHTML = [1, 2, 3, 4, 5].map(i => `<button data-star="${i}" data-mod="${el.dataset.r}" class="${i <= shown ? "on" : ""}" aria-label="${i} yıldız">★</button>`).join("") + `<small>${o.n ? avg.toFixed(1) + " (" + o.n + ")" : "Puan ver"}</small>`;
+  });
+  document.querySelectorAll(".save-btn").forEach(b => { const on = savedSet.has(b.dataset.save); b.classList.toggle("on", on); b.textContent = on ? "🔖 Kaydedildi" : "🔖 Kaydet"; });
+  if (savedOnly) filterMods();
+}
+modGrid.addEventListener("click", async (e) => {
+  const st = e.target.closest("[data-star]"), sv = e.target.closest("[data-save]"), pk = e.target.closest("[data-pick]"), by = e.target.closest(".by");
+  if (by) { pickGame("Tümü"); ownerFilter = by.dataset.uid; ownerName = by.textContent.replace("👤", "").trim(); filterMods(); goTo("#mods"); return; }
+  if (pk) {
+    const m = modData[pk.dataset.pick];
+    const r = await supabaseClient.from("mods").update({ featured: !m.featured }).eq("id", m.id).select();
+    if (r.error || !r.data || !r.data.length) { showToast("Yapılamadı: " + (r.error ? r.error.message : "yetki yok.")); return; }
+    await loadMods(); return;
+  }
+  if (!st && !sv) return;
+  if (!currentUid) { showToast("Bunun için giriş yapmalısın."); return; }
+  if (st) {
+    const r = await supabaseClient.from("ratings").upsert({ mod_id: st.dataset.mod, user_id: currentUid, stars: +st.dataset.star }, { onConflict: "mod_id,user_id" });
+    if (r.error) { showToast("Puan verilemedi: " + r.error.message); return; }
+    showToast("Puanın kaydedildi.");
+  } else {
+    const id = sv.dataset.save;
+    const r = savedSet.has(id) ? await supabaseClient.from("saved_mods").delete().eq("user_id", currentUid).eq("mod_id", id) : await supabaseClient.from("saved_mods").insert({ user_id: currentUid, mod_id: id });
+    if (r.error) { showToast("Kaydedilemedi: " + r.error.message); return; }
+  }
+  await loadExtras();
+});
+document.getElementById("mySaved").addEventListener("click", () => { profileMenu.hidden = true; pickGame("Tümü"); savedOnly = true; filterMods(); goTo("#mods"); });
+document.getElementById("myMods").addEventListener("click", () => { profileMenu.hidden = true; pickGame("Tümü"); ownerFilter = currentUid; ownerName = "Modlarım"; filterMods(); goTo("#mods"); });
+modGrid.addEventListener("click", (e) => {
+  const a = e.target.closest("[data-dl]");
+  if (!a || !supabaseClient) return;
+  try { if (sessionStorage.getItem("dl" + a.dataset.dl)) return; sessionStorage.setItem("dl" + a.dataset.dl, "1"); } catch (_) {}
+  supabaseClient.rpc("inc_download", { mod_id: String(a.dataset.dl) }).then(() => {});
+});
 function modStyle(cat) {
   const main = catInfo(cat).main;
   const g = CATEGORY_TREE.find(x => x.name === main);
@@ -814,11 +907,13 @@ function modCard(m) {
   const pendBadge = pend ? `<em class="pend-badge">⏳ Onay bekliyor</em>` : "";
   const approveBtn = pend ? `<button class="approve-btn" data-approve="${esc(m.id)}">Onayla</button>` : "";
   const badge = imgs.length > 1 ? `<em class="photo-count">📷 ${imgs.length}</em>` : "";
-  return `<article class="mod-card" data-name="${esc((m.title || "").toLocaleLowerCase("tr"))}" data-category="${esc(m.category)}" data-platform="${esc(m.platform)}" data-game="${esc(m.game)}">
-    <div class="mod-image ${st[1]}"${imgs.length ? ` data-gallery="${esc(m.id)}"` : ""}>${cover}<span>${esc(m.game)} · ${esc(m.platform)}</span>${badge}${pendBadge}</div>
-    <div class="mod-info"><p class="tag">${esc(m.category).toLocaleUpperCase("tr")} · ${esc(m.game)} · ${esc(m.platform).toLocaleUpperCase("tr")}</p>
+  return `<article class="mod-card" data-name="${esc((m.title || "").toLocaleLowerCase("tr"))}" data-category="${esc(m.category)}" data-platform="${esc(m.platform)}" data-game="${esc(m.game)}" data-id="${esc(m.id)}" data-brand="${esc(m.brand || "")}" data-owner="${esc(m.owner_id || "")}" data-featured="${m.featured ? 1 : 0}">
+    <div class="mod-image ${st[1]}"${imgs.length ? ` data-gallery="${esc(m.id)}"` : ""}>${cover}<span>${esc(m.game)} · ${esc(m.platform)}</span>${badge}${pendBadge}${m.featured ? '<em class="pick-badge">👑 Haftanın Seçimi</em>' : ""}</div>
+    <div class="mod-info"><p class="tag">${esc(m.category).toLocaleUpperCase("tr")} · ${esc(m.game)} · ${esc(m.platform).toLocaleUpperCase("tr")}${m.downloads ? " · ⬇ " + m.downloads : ""}</p>
     <h3>${esc(m.title)}</h3><p class="desc">${esc(m.description)}</p>
-    <a class="download" href="${esc(m.file_url)}" target="_blank" rel="noopener">İndir <b>↓</b></a>
+    <div class="mod-meta"><div class="stars" data-r="${esc(m.id)}"></div>${m.owner_name ? `<button class="by" data-uid="${esc(m.owner_id)}">👤 ${esc(m.owner_name)}</button>` : ""}</div>
+    <div class="card-actions"><button class="save-btn" data-save="${esc(m.id)}">🔖 Kaydet</button><button class="pick-btn" data-pick="${esc(m.id)}">${m.featured ? "👑 Seçimi kaldır" : "👑 Haftanın seçimi"}</button></div>
+    <a class="download" data-dl="${esc(m.id)}" href="${esc(m.file_url)}" target="_blank" rel="noopener">İndir <b>↓</b></a>
     ${approveBtn}
     <button class="del-btn" data-del="${esc(m.id)}">Sil</button></div></article>`;
 }
@@ -831,6 +926,7 @@ async function loadMods() {
   cards = [...modGrid.querySelectorAll(".mod-card")];
   buildSlider(data);
   updateCatCounts();
+  loadExtras();
   filterMods();
 }
 loadMods();
@@ -848,7 +944,7 @@ function showToast(msg) {
   toast.textContent = msg; toast.classList.add('show'); clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toast.classList.remove('show'), 3600);
 }
-function pickGame(g) { category = 'Tümü'; subCategory = 'Tümü'; const b = document.querySelector('.game-filter[data-game="' + g + '"]'); if (b) b.click(); }
+function pickGame(g) { category = 'Tümü'; subCategory = 'Tümü'; brandFilter = 'Tümü'; ownerFilter = null; savedOnly = false; const b = document.querySelector('.game-filter[data-game="' + g + '"]'); if (b) b.click(); }
 function goTo(sel) { const el = document.querySelector(sel); if (el) el.scrollIntoView({ behavior: 'smooth' }); }
 document.querySelectorAll('#nav .nav-game').forEach(btn => btn.addEventListener('click', () => {
   subGame = btn.dataset.game;
@@ -863,12 +959,13 @@ document.getElementById('menuToggle').addEventListener('click', closeSub);
 document.getElementById('navClose').addEventListener('click', closeNav);
 navSub.querySelectorAll('[data-act]').forEach(btn => btn.addEventListener('click', () => {
   const act = btn.dataset.act;
-  if (act === 'brands') { closeNav(); showToast('Markalar bölümü yakında eklenecek.'); return; }
+  if (act === 'brands') { openBrands(); return; }
   if (act === 'cats') { openNavCats(); return; }
+  sortMode = act === 'trend' ? 'trend' : 'new';
   pickGame(subGame); closeNav();
   if (act === 'game') goTo('#home');
   else goTo('#mods');
-  if (act === 'trend') showToast('Trend sıralaması, indirme sayıları eklenince aktif olacak.');
+  if (act === 'trend') showToast('En çok indirilen modlar üstte.');
 }));
 
 
@@ -897,7 +994,21 @@ function applyCat(g, main, sub) {
   closeNav(); catModal.hidden = true;
   goTo('#mods');
 }
+function brandName(b) { return b.replace(/_/g, ' ').toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase()); }
+function openBrands() {
+  const t = {};
+  cards.filter(c => c.dataset.game === subGame && c.dataset.brand).forEach(c => { t[c.dataset.brand] = (t[c.dataset.brand] || 0) + 1; });
+  const list = Object.entries(t).sort((a, b) => b[1] - a[1]);
+  closeNav();
+  if (!list.length) { showToast(subGame + ' için marka bilgisi olan mod henüz yok.'); return; }
+  catModalGame = subGame;
+  document.getElementById('catModalGames').hidden = true;
+  catModalList.innerHTML = list.map(x => `<button class="cl-main" data-brand="${esc(x[0])}"><span>🏷️ ${esc(brandName(x[0]))}</span><small>${x[1]} mod</small></button>`).join('');
+  catModal.hidden = false;
+}
 function catClick(g, e) {
+  const bb = e.target.closest('[data-brand]');
+  if (bb) { pickGame(g); brandFilter = bb.dataset.brand; filterMods(); closeNav(); catModal.hidden = true; goTo('#mods'); return; }
   const sb = e.target.closest('.cl-sub');
   if (sb) { applyCat(g, sb.dataset.main, sb.dataset.sub); return; }
   const mb = e.target.closest('.cl-main'); if (!mb) return;
@@ -915,6 +1026,7 @@ navCats.addEventListener('click', e => {
   catClick(subGame, e);
 });
 function renderCatModal() {
+  document.getElementById('catModalGames').hidden = false;
   catModalList.innerHTML = catListHTML(catModalGame);
   document.querySelectorAll('#catModalGames [data-g]').forEach(b => b.classList.toggle('active', b.dataset.g === catModalGame));
 }
@@ -931,13 +1043,14 @@ catModal.addEventListener('click', e => { if (e.target === catModal) catModal.hi
 
 function updateActiveCat() {
   const el = document.getElementById('activeCat');
-  if (category === 'Tümü') { el.hidden = true; el.innerHTML = ''; return; }
+  if (category === 'Tümü' && brandFilter === 'Tümü' && !ownerFilter && !savedOnly) { el.hidden = true; el.innerHTML = ''; return; }
   el.hidden = false;
-  el.innerHTML = `<button type="button" id="clearCat">${category}${subCategory !== 'Tümü' ? ' › ' + subCategory : ''} <b>✕</b></button>`;
+  const lbl = [savedOnly ? '🔖 Kaydettiklerim' : '', ownerFilter ? '👤 ' + ownerName : '', brandFilter !== 'Tümü' ? brandName(brandFilter) : '', category !== 'Tümü' ? category + (subCategory !== 'Tümü' ? ' › ' + subCategory : '') : ''].filter(Boolean).join(' · ');
+  el.innerHTML = `<button type="button" id="clearCat">${lbl} <b>✕</b></button>`;
 }
 document.getElementById('activeCat').addEventListener('click', e => {
   if (!e.target.closest('#clearCat')) return;
-  category = 'Tümü'; subCategory = 'Tümü'; filterMods();
+  category = 'Tümü'; subCategory = 'Tümü'; brandFilter = 'Tümü'; ownerFilter = null; savedOnly = false; filterMods();
 });
 
 const galleryModal = document.getElementById("galleryModal");
@@ -993,7 +1106,7 @@ function matchCat(s) {
   for (const [re, sub] of CAT_RULES) if (re.test(s)) return sub;
   return null;
 }
-let detectedGame = null, detectedGuess = null, upBlocked = false;
+let detectedGame = null, detectedGuess = null, detectedBrand = null, upBlocked = false;
 const GAME_MAP = { FS19: "FS20", FS22: "FS23", FS25: "FS26" };
 function gameFromText(raw) {
   const m = raw.match(/\/fs(\d\d)\/modDesc\.xsd/i);
@@ -1010,7 +1123,7 @@ function guessFromDesc(raw) {
   return "FS25";
 }
 async function detectCategory(file) {
-  detectedGame = null; detectedGuess = null;
+  detectedGame = null; detectedGuess = null; detectedBrand = null;
   if (window.JSZip && file.size < 400 * 1024 * 1024) {
     try {
       const zip = await JSZip.loadAsync(file);
@@ -1027,7 +1140,10 @@ async function detectCategory(file) {
         for (const it of items) {
           const f = zip.file(it.getAttribute("xmlFilename") || "");
           if (!f) continue;
-          const c = parse(await f.async("string")).querySelector("storeData category");
+          const sd = parse(await f.async("string"));
+          const bn = sd.querySelector("storeData brand");
+          if (bn && !detectedBrand) detectedBrand = bn.textContent.trim();
+          const c = sd.querySelector("storeData category");
           const sub = c && matchCat(c.textContent.trim().split(/\s+/)[0]);
           if (sub) tally[sub] = (tally[sub] || 0) + 1;
         }
@@ -1072,6 +1188,18 @@ document.getElementById("upFile").addEventListener("change", async (e) => {
     : "Kategori belirlenemedi, \"Diğer Modlar\" seçildi (istersen değiştirebilirsin)";
 });
 document.getElementById("upGame").addEventListener("change", () => { upBlocked = false; });
+const upModeEl = document.getElementById("upMode"), upFileEl = document.getElementById("upFile"), upLinkEl = document.getElementById("upLink");
+upModeEl.addEventListener("change", () => {
+  const link = upModeEl.value === "link";
+  upFileEl.style.display = document.getElementById("upFileLabel").style.display = link ? "none" : "";
+  upFileEl.required = !link;
+  upLinkEl.style.display = document.getElementById("linkNote").style.display = link ? "" : "none";
+  upLinkEl.required = link;
+  document.getElementById("upGame").style.display = link ? "" : "none";
+  document.getElementById("upCategory").style.display = link ? "" : "none";
+  if (link) { upBlocked = false; detectedBrand = null; document.getElementById("gameAuto").textContent = ""; }
+  else if (upFileEl.files[0]) upFileEl.dispatchEvent(new Event("change"));
+});
 openUpload.addEventListener("click", () => { profileMenu.hidden = true; upMsg.textContent = ""; uploadModal.hidden = false; });
 document.getElementById("closeUpload").addEventListener("click", () => { uploadModal.hidden = true; });
 async function resizeImage(file, max = 1000) {
@@ -1086,11 +1214,35 @@ async function resizeImage(file, max = 1000) {
     return b || file;
   } catch (e) { return file; }
 }
+function uploadWithProgress(path, file, onP) {
+  return supabaseClient.auth.getSession().then(({ data }) => new Promise((resolve, reject) => {
+    const token = data.session && data.session.access_token;
+    if (!token) return reject(new Error("Önce giriş yapmalısın."));
+    const x = new XMLHttpRequest();
+    x.open("POST", SUPABASE_URL + "/storage/v1/object/mods/" + path.split("/").map(encodeURIComponent).join("/"));
+    x.setRequestHeader("Authorization", "Bearer " + token);
+    x.setRequestHeader("apikey", SUPABASE_KEY);
+    x.timeout = 20 * 60 * 1000;
+    x.upload.onprogress = e => { if (e.lengthComputable) onP(Math.round(e.loaded / e.total * 100), e.loaded, e.total); };
+    x.onload = () => {
+      if (x.status < 300) return resolve();
+      let m = x.responseText; try { m = JSON.parse(m).message || m; } catch (_) {}
+      reject(new Error(x.status === 413 ? "Dosya çok büyük (" + (file.size / 1048576).toFixed(0) + " MB). Supabase ücretsiz planında sınır 50 MB; Storage ayarlarından yükseltebilirsin." : m));
+    };
+    x.onerror = () => reject(new Error("Bağlantı koptu, internetini kontrol edip tekrar dene."));
+    x.ontimeout = () => reject(new Error("Yükleme zaman aşımına uğradı."));
+    const fd = new FormData(); fd.append("cacheControl", "3600"); fd.append("", file);
+    x.send(fd);
+  }));
+}
 uploadForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!supabaseClient) { upMsg.textContent = "Hata: Supabase yüklenemedi."; return; }
-  const file = document.getElementById("upFile").files[0];
-  if (!file) return;
+  const linkMode = upModeEl.value === "link";
+  const file = linkMode ? null : document.getElementById("upFile").files[0];
+  const link = upLinkEl.value.trim();
+  if (!linkMode && !file) return;
+  if (linkMode && !/^https:\/\/\S+$/i.test(link)) { upMsg.textContent = "Geçerli bir https:// linki yapıştır."; return; }
   if (upBlocked) { upMsg.textContent = "Bu mod desteklenmeyen bir oyun sürümü için görünüyor."; return; }
   const imgFiles = [...document.getElementById("upImage").files];
   if (imgFiles.length < 4) { upMsg.textContent = "En az 4 fotoğraf seçmelisin (şu an " + imgFiles.length + ")."; return; }
@@ -1102,9 +1254,8 @@ uploadForm.addEventListener("submit", async (event) => {
     const uid = ud.data && ud.data.user && ud.data.user.id;
     if (!uid) throw new Error("Önce giriş yapmalısın.");
     const stamp = Date.now();
-    const path = uid + "/" + stamp + "/" + file.name;
-    const up = await supabaseClient.storage.from("mods").upload(path, file, { contentType: file.type || "application/zip" });
-    if (up.error) throw up.error;
+    const path = file ? uid + "/" + stamp + "/" + file.name : "";
+    if (file) await uploadWithProgress(path, file, (p, l, t) => { upMsg.textContent = "Mod dosyası yükleniyor %" + p + " (" + (l / 1048576).toFixed(1) + " / " + (t / 1048576).toFixed(1) + " MB)"; });
     const imageUrls = [];
     for (let i = 0; i < imgFiles.length; i++) {
       upMsg.textContent = "Foto yükleniyor " + (i + 1) + "/" + imgFiles.length + "...";
@@ -1116,25 +1267,27 @@ uploadForm.addEventListener("submit", async (event) => {
       imageUrls.push(supabaseClient.storage.from("mods").getPublicUrl(ipath).data.publicUrl);
     }
     upMsg.textContent = "Kaydediliyor...";
-    const pub = supabaseClient.storage.from("mods").getPublicUrl(path);
+    const pub = file ? supabaseClient.storage.from("mods").getPublicUrl(path) : null;
     const ins = await supabaseClient.from("mods").insert({
       title: document.getElementById("upTitle").value.trim(),
       description: document.getElementById("upDesc").value.trim(),
       game: document.getElementById("upGame").value,
       platform: document.getElementById("upPlatform").value,
       category: document.getElementById("upCategory").value,
+      brand: (detectedBrand && !/^(none|)$/i.test(detectedBrand)) ? detectedBrand.toUpperCase() : null,
       file_path: path,
-      file_url: pub.data.publicUrl,
-      status: "approved",
+      file_url: file ? pub.data.publicUrl : link,
+      status: isAdmin ? "approved" : "pending",
       owner_id: uid,
+      owner_name: (ud.data.user.email || "").split("@")[0].slice(0, 30),
       image_url: imageUrls[0],
       images: imageUrls
     });
     if (ins.error) throw ins.error;
-    upMsg.textContent = "Mod yüklendi!";
+    upMsg.textContent = isAdmin ? "Mod yüklendi!" : "Mod yüklendi! Admin onayından sonra sitede görünecek.";
     uploadForm.reset();
     await loadMods();
-    setTimeout(() => { uploadModal.hidden = true; }, 1200);
+    setTimeout(() => { uploadModal.hidden = true; }, isAdmin ? 1200 : 3000);
   } catch (err) {
     upMsg.textContent = "Hata: " + err.message;
   } finally {
@@ -1194,7 +1347,7 @@ const LEGAL = {
 <h3>Bilgileri nasıl kullanıyoruz</h3>
 <p>Hesabına giriş yapabilmen, modları sitede yayınlayabilmemiz ve kötüye kullanımı önleyebilmemiz için kullanırız. Bilgilerini satmayız ve reklam amacıyla üçüncü kişilerle paylaşmayız.</p>
 <h3>Herkese açık bilgiler</h3>
-<p>Yüklediğin modlar, fotoğraflar, başlık ve açıklamalar sitede herkese açık görünür. E-posta adresin başka kullanıcılara gösterilmez.</p>
+<p>Yüklediğin modlar, fotoğraflar, başlık ve açıklamalar sitede herkese açık görünür. E-posta adresin gösterilmez; yüklediğin modlarda kullanıcı adı olarak e-postanın @ işaretinden önceki kısmı görünür. Modlara verdiğin puanlar ve kaydettiğin modlar hesabına bağlı tutulur.</p>
 <h3>Kullandığımız hizmetler</h3>
 <p>Supabase (hesap, veritabanı ve dosya depolama), Netlify (site barındırma) ve jsDelivr ile cdnjs (site kütüphaneleri). Bu hizmetler siteyi açtığında IP adresini görebilir.</p>
 <h3>Çerezler ve tarayıcı depolaması</h3>
