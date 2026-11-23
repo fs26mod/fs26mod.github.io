@@ -993,13 +993,24 @@ function matchCat(s) {
   for (const [re, sub] of CAT_RULES) if (re.test(s)) return sub;
   return null;
 }
-let detectedGame = null, upBlocked = false;
+let detectedGame = null, detectedGuess = null, upBlocked = false;
+const GAME_MAP = { FS19: "FS20", FS22: "FS23", FS25: "FS26" };
 function gameFromText(raw) {
   const m = raw.match(/\/fs(\d\d)\/modDesc\.xsd/i);
   return m ? "FS" + m[1] : null;
 }
+/* modDesc.xml içindeki descVersion'dan tahmin (xsd ve dosya adı yoksa) */
+function guessFromDesc(raw) {
+  const m = raw.match(/descVersion\s*=\s*["'](\d+)["']/i);
+  if (!m) return null;
+  const v = +m[1];
+  if (v <= 40) return "FS17";
+  if (v <= 64) return "FS19";
+  if (v <= 85) return "FS22";
+  return "FS25";
+}
 async function detectCategory(file) {
-  detectedGame = null;
+  detectedGame = null; detectedGuess = null;
   if (window.JSZip && file.size < 400 * 1024 * 1024) {
     try {
       const zip = await JSZip.loadAsync(file);
@@ -1008,6 +1019,7 @@ async function detectCategory(file) {
         const parse = s => new DOMParser().parseFromString(s, "text/xml");
         const raw = await md.async("string");
         detectedGame = gameFromText(raw);
+        detectedGuess = guessFromDesc(raw);
         const doc = parse(raw);
         if (doc.querySelector("maps map")) return "Diğer Haritalar";
         const items = [...doc.querySelectorAll("storeItems storeItem")].slice(0, 12);
@@ -1034,19 +1046,32 @@ document.getElementById("upFile").addEventListener("change", async (e) => {
   note.textContent = "Kategori belirleniyor...";
   const sub = await detectCategory(f);
   document.getElementById("upCategory").value = sub || "Diğer Modlar";
-  const fm = f.name.match(/^FS(\d\d)[_\- ]/i);
-  const game = detectedGame || (fm ? "FS" + fm[1] : null);
+  const fm = f.name.match(/(?:^|[^a-z0-9])FS[\s_\-]?(\d\d)(?!\d)/i);
+  let game = detectedGame || (fm ? "FS" + fm[1] : null);
+  let guessed = false;
+  if (!game && detectedGuess) { game = detectedGuess; guessed = true; }
+  const orig = game;
+  const mapped = !!(game && GAME_MAP[game]);
+  if (mapped) game = GAME_MAP[game];
   const gSel = document.getElementById("upGame"), gNote = document.getElementById("gameAuto");
   const ok = [...gSel.options].some(o => o.value === game);
+  if (guessed && !ok) game = null;
   upBlocked = !!game && !ok;
-  gSel.style.display = game ? "none" : "";
-  if (ok) { gSel.value = game; gNote.textContent = "Oyun sürümü otomatik belirlendi: " + game; }
+  gSel.style.display = (game && !guessed) ? "none" : "";
+  if (ok) {
+    gSel.value = game;
+    gNote.textContent = guessed
+      ? "Oyun sürümü tahmin edildi: " + game + ". Yanlışsa aşağıdan değiştir."
+      : mapped ? orig + "'ten dönüştürülmüş mod olarak " + game + "'ya eklenecek."
+      : "Oyun sürümü otomatik belirlendi: " + game;
+  }
   else if (game) gNote.textContent = "Bu mod " + game + " için görünüyor. Sitede şimdilik sadece FS20, FS23 ve FS26 modları var.";
   else gNote.textContent = "Oyun sürümü anlaşılamadı, lütfen aşağıdan seç.";
   note.textContent = sub
     ? "Kategori otomatik seçildi: " + sub + " (istersen değiştirebilirsin)"
     : "Kategori belirlenemedi, \"Diğer Modlar\" seçildi (istersen değiştirebilirsin)";
 });
+document.getElementById("upGame").addEventListener("change", () => { upBlocked = false; });
 openUpload.addEventListener("click", () => { profileMenu.hidden = true; upMsg.textContent = ""; uploadModal.hidden = false; });
 document.getElementById("closeUpload").addEventListener("click", () => { uploadModal.hidden = true; });
 async function resizeImage(file, max = 1000) {
