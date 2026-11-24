@@ -7,17 +7,17 @@
 <meta name="theme-color" content="#7D9000">
 <meta name="description" content="FS26 MOD - Android için Farming Simulator 20, 23 ve 26 modları. Traktör, ekipman, harita ve daha fazlası tek adreste.">
 <meta name="robots" content="index, follow">
-<link rel="canonical" href="https://yusufmencuk2-cell.github.io/fs26mod/">
+<link rel="canonical" href="https://fs26mod.github.io/">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="tr_TR">
 <meta property="og:site_name" content="FS26 MOD">
 <meta property="og:title" content="FS26 MOD | Farming Simulator 26 Modları">
 <meta property="og:description" content="Android için Farming Simulator 20, 23 ve 26 modları tek adreste.">
-<meta property="og:url" content="https://yusufmencuk2-cell.github.io/fs26mod/">
+<meta property="og:url" content="https://fs26mod.github.io/">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="FS26 MOD | Farming Simulator 26 Modları">
 <meta name="twitter:description" content="Android için Farming Simulator 20, 23 ve 26 modları tek adreste.">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"FS26 MOD","url":"https://yusufmencuk2-cell.github.io/fs26mod/","inLanguage":"tr"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"FS26 MOD","url":"https://fs26mod.github.io/","inLanguage":"tr"}</script>
 <title>FS26 MOD | Farming Simulator 26 Modları</title>
 <style>
 *{box-sizing:border-box} :root{--bg:#0c100d;--panel:#171d19;--line:#2c3830;--green:#7ee000;--lime:#a5f52a;--text:#f3f7f2;--muted:#aab5ac}
@@ -128,6 +128,12 @@ body.is-admin #upNote{display:none}
 .pend-badge{position:absolute;left:12px;top:12px;background:#f0b24a;color:#10170b;font-size:11px;font-weight:900;padding:5px 9px;border-radius:5px;font-style:normal}
 .approve-btn{display:none;width:100%;margin-top:8px;background:#7ee000;color:#10170b;border:0;border-radius:9px;padding:11px;font-weight:900;cursor:pointer}
 body.is-admin .approve-btn{display:block}
+.hold-btn{display:none;width:100%;margin-top:8px;background:#2a2410;color:#f0b24a;border:1px solid #6b5a1f;border-radius:9px;padding:11px;font-weight:900;cursor:pointer}
+body.is-admin .hold-btn{display:block}
+.pend-section{grid-column:1/-1;border:1px solid #6b5a1f;background:#17140a;border-radius:16px;padding:16px;margin-bottom:8px}
+.pend-section h3{margin:0 0 4px;color:#f0b24a;font-size:19px}
+.pend-section .pend-note{margin:0 0 14px;color:#aeb9b0;font-size:13px}
+.pend-section .pend-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
 
 .categories{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));margin-bottom:14px}
 .cat{min-height:78px;font-size:13px;text-align:center}
@@ -286,6 +292,8 @@ body.has-slider .search-wrap{margin-top:16px!important}
 .cl-main,.cl-sub{width:100%;display:flex;align-items:center;gap:10px;text-align:left;background:#141414;border:1px solid #2a2a2a;border-radius:12px;color:#fff;font:inherit;font-weight:800;padding:14px 16px;cursor:pointer}
 .cl-main small{margin-left:auto;color:#aab5ac;font-weight:400;font-size:12px}
 .cl-main em{font-style:normal;color:var(--green)}
+.bl{width:34px;height:34px;border-radius:9px;background:#222b23;display:inline-flex;align-items:center;justify-content:center;flex:none;margin-right:2px}.bl img{width:22px;height:22px;object-fit:contain}.bl.big{width:44px;height:34px;background:#fff;padding:3px}.bl.big img{width:100%;height:100%}.bl b{color:#7ee000;font-size:16px;font-weight:900}
+.cl-main span.bn{display:flex;align-items:center;gap:10px}
 .cl-sub{padding:11px 14px;font-size:14px;font-weight:600;border-radius:10px;background:#0f1410}
 .cl-subs{display:flex;flex-direction:column;gap:6px;padding:2px 0 4px 14px}.cl-subs[hidden]{display:none}
 .cl-main:hover,.cl-sub:hover{border-color:var(--olive)}
@@ -306,6 +314,28 @@ body.has-slider .search-wrap{margin-top:16px!important}
 .save-btn.on{background:#9be22b;color:#10200a}
 .pick-btn{display:none}body.is-admin .pick-btn{display:block}
 .pick-badge{position:absolute;right:12px;bottom:12px;background:#ffc933;color:#241a00;border-radius:8px;padding:4px 8px;font-size:12px;font-style:normal;font-weight:900}
+#profileMenu{position:fixed;inset:0;width:auto;padding:0;border:0;border-radius:0;background:#000b;z-index:60;display:flex;flex-direction:column;justify-content:flex-end;gap:0;box-shadow:none}
+#profileMenu[hidden]{display:none}
+#profileMenu .sheet{background:#0d100d;border:1px solid #1f2a1f;border-bottom:0;border-radius:28px 28px 0 0;padding:12px 16px calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:2px}
+.sheet-grip{width:100%;padding:10px 0 22px;touch-action:none;cursor:grab}
+.sheet-grip::after{content:"";display:block;width:64px;height:5px;border-radius:5px;background:#4a4f4a;margin:0 auto}
+.sheet-user{touch-action:none}
+#profileMenu{overscroll-behavior:contain;touch-action:none}
+#profileMenu .sheet{will-change:transform;touch-action:pan-y}
+.sheet-user{display:flex;align-items:center;gap:14px;padding:6px 6px 14px}
+#menuAvatar{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#9bf51a,#2f6b00);color:#10170b;font-weight:900;font-size:22px;display:flex;align-items:center;justify-content:center;flex:none}
+.sheet-user b{font-size:19px;color:#fff;display:block}
+#profileEmail{margin:2px 0 0;padding:0;border:0;color:#8f998f;font-size:14px;word-break:break-all}
+#profileMenu .sheet button{display:flex;align-items:center;gap:16px;width:100%;background:none;border:0;color:#f2f5f2;font-size:17px;font-weight:700;padding:15px 8px;border-radius:12px;text-align:left;cursor:pointer}
+#profileMenu .sheet button i{font-style:normal;width:26px;text-align:center;font-size:20px}
+#profileMenu .sheet button[hidden]{display:none}
+#profileMenu .sheet button.admin-only{display:none}body.is-admin #profileMenu .sheet button.admin-only{display:flex}
+#profileMenu .sheet hr{border:0;border-top:1px solid #222a22;margin:6px 0;width:100%}
+#profileMenu .sheet #logoutBtn{color:#ff9a9a}
+@keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@keyframes sheetFade{from{opacity:0}to{opacity:1}}
+#profileMenu:not([hidden]){animation:sheetFade .6s ease}
+#profileMenu:not([hidden]) .sheet{animation:sheetUp .7s cubic-bezier(.16,.84,.28,1)}
 </style>
 </head>
 <body>
@@ -338,11 +368,19 @@ body.has-slider .search-wrap{margin-top:16px!important}
   <div id="profileWrap" hidden>
     <button id="avatarBtn" aria-label="Profil">?</button>
     <div id="profileMenu" hidden>
-      <p id="profileEmail"></p>
-      <button id="openUpload" hidden>Mod Yükle</button>
-      <button id="mySaved">🔖 Kaydettiklerim</button>
-      <button id="myMods">📦 Modlarım</button>
-      <button id="logoutBtn">Çıkış Yap</button>
+     <div class="sheet">
+      <div class="sheet-grip"></div>
+      <div class="sheet-user"><div id="menuAvatar">?</div><div><b id="profileName">Kullanıcı adı belirle</b><p id="profileEmail"></p></div></div>
+      <button id="myMods"><i>📦</i>Modlarım</button>
+      <button id="openUpload" hidden><i>⬆️</i>Mod Yükle</button>
+      <button id="myPending" class="admin-only"><i>⏳</i><span id="myPendingLabel">Onay Bekleyenler</span></button>
+      <hr>
+      <button id="mySaved"><i>🔖</i>Kaydettiklerim</button>
+      <hr>
+      <button id="changeName"><i>✏️</i>Kullanıcı adı</button>
+      <hr>
+      <button id="logoutBtn"><i>🚪</i>Çıkış Yap</button>
+     </div>
     </div>
   </div>
 </div>
@@ -353,6 +391,7 @@ body.has-slider .search-wrap{margin-top:16px!important}
     <h2 id="authTitle">Giriş Yap</h2>
 
     <form id="authForm">
+      <input id="authUser" type="text" placeholder="Kullanıcı adın (3-20 karakter)" minlength="3" maxlength="20" style="display:none">
       <input id="authEmail" type="email" placeholder="E-posta adresin" required>
       <input id="authPassword" type="password" placeholder="Şifren" required minlength="8">
       <button type="submit" id="authSubmit">Giriş Yap</button>
@@ -369,7 +408,7 @@ body.has-slider .search-wrap{margin-top:16px!important}
     <form id="uploadForm">
       <input id="upTitle" type="text" placeholder="Mod adı" required>
       <textarea id="upDesc" rows="3" placeholder="Açıklama"></textarea>
-      <select id="upGame" style="display:none"><option>FS26</option><option>FS23</option><option>FS20</option></select>
+      <select id="upGame" style="display:none"><option value="" selected>Oyun sürümünü seç...</option><option>FS26</option><option>FS23</option><option>FS20</option></select>
       <p id="gameAuto" class="up-note"></p>
       <select id="upPlatform" style="display:none"><option>Android</option></select>
       <select id="upCategory" style="display:none"></select>
@@ -484,7 +523,7 @@ function catInfo(value) {
 }
 let subCategory = 'Tümü', sortMode = 'new', brandFilter = 'Tümü';
 let savedSet = new Set(), ownerFilter = null, ownerName = '', savedOnly = false, currentUid = null;
-const RT = {};
+const RT = {}, PN = {};
 const catBox = document.getElementById('categories');
 const subBox = document.getElementById('subCats');
 catBox.innerHTML = '<button class="cat selected" data-category="Tümü"><small class="cat-count">0 mod</small><strong>Tümü</strong><b>✦</b></button>' +
@@ -664,6 +703,7 @@ const authForm = document.getElementById("authForm");
 const authEmail = document.getElementById("authEmail");
 const authPassword = document.getElementById("authPassword");
 const authSubmit = document.getElementById("authSubmit");
+const authUser = document.getElementById("authUser");
 const authMessage = document.getElementById("authMessage");
 
 let authMode = "login";
@@ -685,10 +725,13 @@ document.getElementById("registerBtn").addEventListener("click", () => {
 });
 
 function syncAuth() {
-  authEmail.style.display = authMode === "recover" ? "none" : "";
-  authEmail.required = authMode !== "recover";
-  authPassword.style.display = authMode === "forgot" ? "none" : "";
-  authPassword.required = authMode !== "forgot";
+  const un = authMode === "username";
+  authUser.style.display = un ? "" : "none";
+  authUser.required = un;
+  authEmail.style.display = (authMode === "recover" || un) ? "none" : "";
+  authEmail.required = !(authMode === "recover" || un);
+  authPassword.style.display = (authMode === "forgot" || un) ? "none" : "";
+  authPassword.required = !(authMode === "forgot" || un);
   authPassword.placeholder = authMode === "recover" ? "Yeni şifren (en az 8 karakter)" : "Şifren";
   document.getElementById("forgotLink").hidden = authMode !== "login";
 }
@@ -716,19 +759,26 @@ authForm.addEventListener("submit", async (event) => {
     let result;
     if (authMode === "forgot") result = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
     else if (authMode === "recover") result = await supabaseClient.auth.updateUser({ password });
+    else if (authMode === "username") {
+      const name = authUser.value.trim();
+      if (!/^[\p{L}0-9_.-]{3,20}$/u.test(name)) throw new Error("Kullanıcı adı 3-20 karakter olmalı (harf, rakam, _ . - kullanabilirsin).");
+      result = await supabaseClient.from("site_users").upsert({ user_id: currentUid, username: name }, { onConflict: "user_id" });
+      if (!result.error) { PN[currentUid] = name; loadMods(); }
+    }
     else result = authMode === "register"
       ? await supabaseClient.auth.signUp({ email, password })
       : await supabaseClient.auth.signInWithPassword({ email, password });
 
     if (result.error) throw result.error;
 
-    authMessage.textContent = { register: "Kayıt başarılı! E-postanı kontrol et.", forgot: "Sıfırlama bağlantısı e-postana gönderildi. Gelen kutusu ve spam klasörüne bak.", recover: "Şifren değiştirildi!" }[authMode] || "Giriş başarılı!";
+    authMessage.textContent = { register: "Kayıt başarılı! E-postanı kontrol et.", forgot: "Sıfırlama bağlantısı e-postana gönderildi. Gelen kutusu ve spam klasörüne bak.", recover: "Şifren değiştirildi!", username: "Kullanıcı adın kaydedildi!" }[authMode] || "Giriş başarılı!";
 
-    if (authMode === "login" || authMode === "recover") {
-      setTimeout(() => authModal.hidden = true, 1200);
+    if (authMode === "login" || authMode === "recover" || authMode === "username") {
+      const m0 = authMode;
+      setTimeout(() => { if (authMode === m0) authModal.hidden = true; }, 1200);
     }
   } catch (error) {
-    authMessage.textContent = "Hata: " + error.message;
+    authMessage.textContent = error.code === "23505" ? "Bu kullanıcı adı başkası tarafından alınmış." : "Hata: " + error.message;
   } finally {
     authSubmit.disabled = false;
   }
@@ -738,6 +788,34 @@ authForm.addEventListener("submit", async (event) => {
 const profileWrap = document.getElementById("profileWrap");
 const avatarBtn = document.getElementById("avatarBtn");
 const profileMenu = document.getElementById("profileMenu");
+document.body.appendChild(profileMenu);
+profileMenu.addEventListener("click", (e) => { if (e.target === profileMenu) profileMenu.hidden = true; });
+(() => {
+  const sh = profileMenu.querySelector(".sheet");
+  let y0 = null, dy = 0, raf = 0;
+  new MutationObserver(() => {
+    document.documentElement.style.overflow = document.body.style.overflow = profileMenu.hidden ? "" : "hidden";
+    sh.style.transform = ""; sh.style.transition = "";
+  }).observe(profileMenu, { attributes: true, attributeFilter: ["hidden"] });
+  sh.addEventListener("pointerdown", (e) => {
+    if (!e.target.closest(".sheet-grip, .sheet-user")) return;
+    y0 = e.clientY; dy = 0; sh.style.animation = "none"; sh.style.transition = "none";
+    sh.setPointerCapture(e.pointerId);
+  });
+  sh.addEventListener("pointermove", (e) => {
+    if (y0 === null) return;
+    dy = Math.max(0, e.clientY - y0);
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => { sh.style.transform = "translate3d(0," + dy + "px,0)"; });
+  });
+  const end = () => {
+    if (y0 === null) return; y0 = null; cancelAnimationFrame(raf);
+    if (dy > 90) { sh.style.transition = "transform .25s ease"; sh.style.transform = "translate3d(0,100%,0)"; setTimeout(() => { profileMenu.hidden = true; sh.style.animation = ""; }, 230); }
+    else { sh.style.transition = "transform .25s ease"; sh.style.transform = "translate3d(0,0,0)"; setTimeout(() => { sh.style.animation = ""; sh.style.transform = ""; }, 260); }
+  };
+  sh.addEventListener("pointerup", end);
+  sh.addEventListener("pointercancel", end);
+})();
 const profileEmail = document.getElementById("profileEmail");
 const logoutBtn = document.getElementById("logoutBtn");
 const ADMIN_EMAIL = "yusufmencuk2@gmail.com";
@@ -747,7 +825,7 @@ const registerBtnEl = document.getElementById("registerBtn");
 
 function renderAccount(session) {
   const user = session && session.user;
-  const prevUid = currentUid; currentUid = user ? user.id : null; if (prevUid !== currentUid) loadExtras();
+  const prevUid = currentUid; currentUid = user ? user.id : null; if (prevUid !== currentUid) { loadExtras(); ensureUsername(); }
   const wasAdmin = isAdmin;
   isAdmin = !!user && (user.email || "").toLowerCase() === ADMIN_EMAIL;
   document.body.classList.toggle("is-admin", isAdmin);
@@ -760,6 +838,7 @@ function renderAccount(session) {
     profileEmail.textContent = user.email;
     openUpload.hidden = false;
     avatarBtn.textContent = (user.email || "?").charAt(0).toLocaleUpperCase("tr");
+    setNames();
   }
 }
 
@@ -837,6 +916,30 @@ slidesEl.addEventListener("click", e => {
 });
 
 const modGrid = document.getElementById("modGrid");
+function setNames() {
+  const n = PN[currentUid], em = profileEmail.textContent || "";
+  document.getElementById("profileName").textContent = n || "Kullanıcı adı belirle";
+  const ch = (n || em || "?").charAt(0).toLocaleUpperCase("tr");
+  avatarBtn.textContent = ch; document.getElementById("menuAvatar").textContent = ch;
+}
+async function loadProfiles() {
+  if (!supabaseClient) return;
+  const r = await supabaseClient.from("site_users").select("user_id,username");
+  (r.data || []).forEach(x => { PN[x.user_id] = x.username; });
+  setNames();
+}
+function openUsername(first) {
+  authMode = "username"; authTitle.textContent = "Kullanıcı adını seç"; authSubmit.textContent = "Kaydet";
+  authUser.value = PN[currentUid] || "";
+  authMessage.textContent = first ? "Modlarının altında bu isim görünecek. E-postan görünmez." : "";
+  authModal.hidden = false; syncAuth();
+}
+async function ensureUsername() {
+  if (!currentUid || !supabaseClient) return;
+  await loadProfiles();
+  if (!PN[currentUid] && authMode !== "recover") openUsername(true);
+}
+document.getElementById("changeName").addEventListener("click", () => { profileMenu.hidden = true; openUsername(false); });
 async function loadExtras() {
   if (!supabaseClient) return;
   const r = await supabaseClient.from("ratings").select("mod_id,stars,user_id");
@@ -877,6 +980,12 @@ modGrid.addEventListener("click", async (e) => {
   await loadExtras();
 });
 document.getElementById("mySaved").addEventListener("click", () => { profileMenu.hidden = true; pickGame("Tümü"); savedOnly = true; filterMods(); goTo("#mods"); });
+document.getElementById("myPending").addEventListener("click", () => {
+  profileMenu.hidden = true;
+  const el = document.getElementById("pendSection");
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  else { showToast("Onay bekleyen mod yok."); goTo("#mods"); }
+});
 document.getElementById("myMods").addEventListener("click", () => { profileMenu.hidden = true; pickGame("Tümü"); ownerFilter = currentUid; ownerName = "Modlarım"; filterMods(); goTo("#mods"); });
 modGrid.addEventListener("click", (e) => {
   const a = e.target.closest("[data-dl]");
@@ -905,25 +1014,35 @@ function modCard(m) {
   const cover = imgs.length ? `<img src="${esc(imgs[0])}" alt="" loading="lazy">` : st[0];
   const pend = m.status && m.status !== "approved";
   const pendBadge = pend ? `<em class="pend-badge">⏳ Onay bekliyor</em>` : "";
+  const holdBtn = pend ? "" : `<button class="hold-btn" data-hold="${esc(m.id)}">⏸ Onaya geri al</button>`;
   const approveBtn = pend ? `<button class="approve-btn" data-approve="${esc(m.id)}">Onayla</button>` : "";
   const badge = imgs.length > 1 ? `<em class="photo-count">📷 ${imgs.length}</em>` : "";
   return `<article class="mod-card" data-name="${esc((m.title || "").toLocaleLowerCase("tr"))}" data-category="${esc(m.category)}" data-platform="${esc(m.platform)}" data-game="${esc(m.game)}" data-id="${esc(m.id)}" data-brand="${esc(m.brand || "")}" data-owner="${esc(m.owner_id || "")}" data-featured="${m.featured ? 1 : 0}">
     <div class="mod-image ${st[1]}"${imgs.length ? ` data-gallery="${esc(m.id)}"` : ""}>${cover}<span>${esc(m.game)} · ${esc(m.platform)}</span>${badge}${pendBadge}${m.featured ? '<em class="pick-badge">👑 Haftanın Seçimi</em>' : ""}</div>
     <div class="mod-info"><p class="tag">${esc(m.category).toLocaleUpperCase("tr")} · ${esc(m.game)} · ${esc(m.platform).toLocaleUpperCase("tr")}${m.downloads ? " · ⬇ " + m.downloads : ""}</p>
     <h3>${esc(m.title)}</h3><p class="desc">${esc(m.description)}</p>
-    <div class="mod-meta"><div class="stars" data-r="${esc(m.id)}"></div>${m.owner_name ? `<button class="by" data-uid="${esc(m.owner_id)}">👤 ${esc(m.owner_name)}</button>` : ""}</div>
+    <div class="mod-meta"><div class="stars" data-r="${esc(m.id)}"></div>${PN[m.owner_id] ? `<button class="by" data-uid="${esc(m.owner_id)}">👤 ${esc(PN[m.owner_id])}</button>` : ""}</div>
     <div class="card-actions"><button class="save-btn" data-save="${esc(m.id)}">🔖 Kaydet</button><button class="pick-btn" data-pick="${esc(m.id)}">${m.featured ? "👑 Seçimi kaldır" : "👑 Haftanın seçimi"}</button></div>
     <a class="download" data-dl="${esc(m.id)}" href="${esc(m.file_url)}" target="_blank" rel="noopener">İndir <b>↓</b></a>
-    ${approveBtn}
+    ${approveBtn}${holdBtn}
     <button class="del-btn" data-del="${esc(m.id)}">Sil</button></div></article>`;
 }
 async function loadMods() {
   if (!supabaseClient) { filterMods(); return; }
   const { data, error } = await supabaseClient.from("mods").select("*").order("created_at", { ascending: false });
   if (error) { count.textContent = "Modlar yüklenemedi"; return; }
+  await loadProfiles();
   pendingCount = isAdmin ? data.filter(m => m.status && m.status !== "approved").length : 0;
-  modGrid.innerHTML = data.map(modCard).join("");
-  cards = [...modGrid.querySelectorAll(".mod-card")];
+  const isPend = m => m.status && m.status !== "approved";
+  const visible = data.filter(m => isAdmin || !isPend(m) || (currentUid && m.owner_id === currentUid));
+  const pendList = isAdmin ? visible.filter(isPend) : [];
+  const mainList = isAdmin ? visible.filter(m => !isPend(m)) : visible;
+  const pendHtml = pendList.length
+    ? `<section class="pend-section" id="pendSection"><h3>⏳ Onay bekleyen modlar (${pendList.length})</h3><p class="pend-note">Sadece sen görüyorsun. Onaylayınca sitede herkese görünür.</p><div class="pend-grid">${pendList.map(modCard).join("")}</div></section>`
+    : "";
+  modGrid.innerHTML = pendHtml + mainList.map(modCard).join("");
+  const pl = document.getElementById("myPendingLabel"); if (pl) pl.textContent = "Onay Bekleyenler" + (pendList.length ? " (" + pendList.length + ")" : "");
+  cards = [...modGrid.querySelectorAll(".mod-card")].filter(c => !c.closest(".pend-section"));
   buildSlider(data);
   updateCatCounts();
   loadExtras();
@@ -994,6 +1113,15 @@ function applyCat(g, main, sub) {
   closeNav(); catModal.hidden = true;
   goTo('#mods');
 }
+const BRAND_LOGOS = {};  // örn: fendt: "data:image/png;base64,...."  (kendi logo dosyaların buraya gömülür)
+const BRAND_NO_AUTO = ['fiat'];  // otomatik logosu yanlış olan markalar (Fiat = otomobil logosu)
+function brandLogo(b) {
+  const slug = b.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const ch = esc(brandName(b).charAt(0));
+  if (BRAND_LOGOS[slug]) return `<i class="bl big"><img src="${BRAND_LOGOS[slug]}" alt=""></i>`;
+  if (BRAND_NO_AUTO.includes(slug)) return `<i class="bl"><b>${ch}</b></i>`;
+  return `<i class="bl"><img src="https://cdn.simpleicons.org/${slug}/ffffff" data-ch="${ch}" alt="" loading="lazy" onerror="this.outerHTML='<b>'+this.dataset.ch+'</b>'"></i>`;
+}
 function brandName(b) { return b.replace(/_/g, ' ').toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase()); }
 function openBrands() {
   const t = {};
@@ -1003,7 +1131,7 @@ function openBrands() {
   if (!list.length) { showToast(subGame + ' için marka bilgisi olan mod henüz yok.'); return; }
   catModalGame = subGame;
   document.getElementById('catModalGames').hidden = true;
-  catModalList.innerHTML = list.map(x => `<button class="cl-main" data-brand="${esc(x[0])}"><span>🏷️ ${esc(brandName(x[0]))}</span><small>${x[1]} mod</small></button>`).join('');
+  catModalList.innerHTML = list.map(x => `<button class="cl-main" data-brand="${esc(x[0])}"><span class="bn">${brandLogo(x[0])}${esc(brandName(x[0]))}</span><small>${x[1]} mod</small></button>`).join('');
   catModal.hidden = false;
 }
 function catClick(g, e) {
@@ -1183,6 +1311,7 @@ document.getElementById("upFile").addEventListener("change", async (e) => {
   }
   else if (game) gNote.textContent = "Bu mod " + game + " için görünüyor. Sitede şimdilik sadece FS20, FS23 ve FS26 modları var.";
   else gNote.textContent = "Oyun sürümü anlaşılamadı, lütfen aşağıdan seç.";
+  if (!ok) gSel.value = "";
   note.textContent = sub
     ? "Kategori otomatik seçildi: " + sub + " (istersen değiştirebilirsin)"
     : "Kategori belirlenemedi, \"Diğer Modlar\" seçildi (istersen değiştirebilirsin)";
@@ -1200,7 +1329,7 @@ upModeEl.addEventListener("change", () => {
   if (link) { upBlocked = false; detectedBrand = null; document.getElementById("gameAuto").textContent = ""; }
   else if (upFileEl.files[0]) upFileEl.dispatchEvent(new Event("change"));
 });
-openUpload.addEventListener("click", () => { profileMenu.hidden = true; upMsg.textContent = ""; uploadModal.hidden = false; });
+openUpload.addEventListener("click", () => { profileMenu.hidden = true; if (!PN[currentUid]) { openUsername(true); return; } upMsg.textContent = ""; uploadModal.hidden = false; });
 document.getElementById("closeUpload").addEventListener("click", () => { uploadModal.hidden = true; });
 async function resizeImage(file, max = 1000) {
   try {
@@ -1244,6 +1373,7 @@ uploadForm.addEventListener("submit", async (event) => {
   if (!linkMode && !file) return;
   if (linkMode && !/^https:\/\/\S+$/i.test(link)) { upMsg.textContent = "Geçerli bir https:// linki yapıştır."; return; }
   if (upBlocked) { upMsg.textContent = "Bu mod desteklenmeyen bir oyun sürümü için görünüyor."; return; }
+  if (!document.getElementById("upGame").value) { upMsg.textContent = "Önce oyun sürümünü seç (FS26, FS23 veya FS20)."; return; }
   const imgFiles = [...document.getElementById("upImage").files];
   if (imgFiles.length < 4) { upMsg.textContent = "En az 4 fotoğraf seçmelisin (şu an " + imgFiles.length + ")."; return; }
   if (imgFiles.length > 10) { upMsg.textContent = "En fazla 10 fotoğraf seçebilirsin."; return; }
@@ -1277,17 +1407,16 @@ uploadForm.addEventListener("submit", async (event) => {
       brand: (detectedBrand && !/^(none|)$/i.test(detectedBrand)) ? detectedBrand.toUpperCase() : null,
       file_path: path,
       file_url: file ? pub.data.publicUrl : link,
-      status: isAdmin ? "approved" : "pending",
+      status: "approved",
       owner_id: uid,
-      owner_name: (ud.data.user.email || "").split("@")[0].slice(0, 30),
       image_url: imageUrls[0],
       images: imageUrls
     });
     if (ins.error) throw ins.error;
-    upMsg.textContent = isAdmin ? "Mod yüklendi!" : "Mod yüklendi! Admin onayından sonra sitede görünecek.";
+    upMsg.textContent = "Mod yüklendi!";
     uploadForm.reset();
     await loadMods();
-    setTimeout(() => { uploadModal.hidden = true; }, isAdmin ? 1200 : 3000);
+    setTimeout(() => { uploadModal.hidden = true; }, 1200);
   } catch (err) {
     upMsg.textContent = "Hata: " + err.message;
   } finally {
@@ -1334,6 +1463,21 @@ modGrid.addEventListener("click", async (e) => {
   await loadMods();
 });
 
+modGrid.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-hold]");
+  if (!btn || !supabaseClient) return;
+  btn.disabled = true;
+  btn.textContent = "Alınıyor...";
+  const r = await supabaseClient.from("mods").update({ status: "pending" }).eq("id", btn.dataset.hold).select();
+  if (r.error || !r.data || !r.data.length) {
+    alert("İşlem yapılamadı: " + (r.error ? r.error.message : "yetki yok."));
+    btn.disabled = false;
+    btn.textContent = "⏸ Onaya geri al";
+    return;
+  }
+  await loadMods();
+});
+
 /* ===== Gizlilik, Şartlar, Hakkında ===== */
 const LEGAL = {
   privacy: ["Gizlilik Politikası", `
@@ -1347,7 +1491,7 @@ const LEGAL = {
 <h3>Bilgileri nasıl kullanıyoruz</h3>
 <p>Hesabına giriş yapabilmen, modları sitede yayınlayabilmemiz ve kötüye kullanımı önleyebilmemiz için kullanırız. Bilgilerini satmayız ve reklam amacıyla üçüncü kişilerle paylaşmayız.</p>
 <h3>Herkese açık bilgiler</h3>
-<p>Yüklediğin modlar, fotoğraflar, başlık ve açıklamalar sitede herkese açık görünür. E-posta adresin gösterilmez; yüklediğin modlarda kullanıcı adı olarak e-postanın @ işaretinden önceki kısmı görünür. Modlara verdiğin puanlar ve kaydettiğin modlar hesabına bağlı tutulur.</p>
+<p>Yüklediğin modlar, fotoğraflar, başlık ve açıklamalar sitede herkese açık görünür. E-posta adresin gösterilmez; yüklediğin modlarda kendi seçtiğin kullanıcı adın görünür. Modlara verdiğin puanlar ve kaydettiğin modlar hesabına bağlı tutulur.</p>
 <h3>Kullandığımız hizmetler</h3>
 <p>Supabase (hesap, veritabanı ve dosya depolama), Netlify (site barındırma) ve jsDelivr ile cdnjs (site kütüphaneleri). Bu hizmetler siteyi açtığında IP adresini görebilir.</p>
 <h3>Çerezler ve tarayıcı depolaması</h3>
