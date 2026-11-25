@@ -2,6 +2,8 @@
 <html lang="tr">
 <head>
 <meta charset="utf-8">
+<link rel="preconnect" href="https://tvnqnhmidlcixzmzorgf.supabase.co" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <meta name="google-site-verification" content="xPgNAo09-nxat6Yq7r0fInY7F6ayTSWhJE5Hn8wqZSQ" />
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#7D9000">
@@ -525,7 +527,7 @@ body.has-slider .search-wrap{margin-top:16px!important}
 <footer><a class="brand footer-brand" href="#"><span>🚜</span><span><b>FS26 <i>MOD</i></b><small>Topluluk için, oyuncularla.</small></span></a><p>Bu, topluluk amaçlı bağımsız bir mod sitesidir; GIANTS Software ile bağlantılı değildir.</p><span class="footer-links"><a href="#" data-legal="privacy">Gizlilik</a><a href="#" data-legal="terms">Şartlar</a><a href="#" data-legal="about">Hakkında</a><a href="#" data-legal="guide">Kurulum Rehberi</a><a href="#" id="reqLink">Mod İste</a><a href="#" id="pwaLink" hidden>Ana ekrana ekle</a></span><small>© 2026 FS26 MOD · Tüm hakları saklıdır. Bu site <b>@fssikayet.iletisim</b> tarafından kurulmuş ve yönetilmektedir.</small> · <a class="footer-ig" href="https://www.instagram.com/fssikayet.iletisim" target="_blank" rel="noopener">Instagram: @fssikayet.iletisim</a></footer>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 /*
  * FS25 -> FS26 doku dönüştürücü (DDS / PNG -> AST)
@@ -2209,7 +2211,6 @@ function modCard(m) {
   const cover = imgs.length ? `<img src="${esc(imgs[0])}" alt="" loading="lazy">` : st[0];
   const pend = m.status && m.status !== "approved";
   const pendBadge = pend ? `<em class="pend-badge">⏳ Onay bekliyor</em>` : "";
-  const holdBtn = pend ? "" : `<button class="hold-btn" data-hold="${esc(m.id)}">⏸ Onaya geri al</button>`;
   const approveBtn = pend ? `<button class="approve-btn" data-approve="${esc(m.id)}">Onayla</button>` : "";
   const badge = imgs.length > 1 ? `<em class="photo-count">📷 ${imgs.length}</em>` : "";
   return `<article class="mod-card" data-name="${esc((m.title || "").toLocaleLowerCase("tr"))}" data-category="${esc(m.category)}" data-platform="${esc(m.platform)}" data-game="${esc(m.game)}" data-id="${esc(m.id)}" data-brand="${esc(m.brand || "")}" data-owner="${esc(m.owner_id || "")}" data-featured="${m.featured ? 1 : 0}">
@@ -2219,16 +2220,14 @@ function modCard(m) {
     <div class="mod-meta"><div class="stars" data-r="${esc(m.id)}"></div>${PN[m.owner_id] ? `<button class="by" data-uid="${esc(m.owner_id)}">👤 ${esc(PN[m.owner_id])}</button>` : ""}</div>
     <div class="card-actions"><button class="save-btn" data-save="${esc(m.id)}">🔖 Kaydet</button><button class="cm-btn" data-cm="${esc(m.id)}">💬 Yorumlar</button><button class="rp-btn" data-rp="${esc(m.id)}">🚩 Bildir</button><button class="pick-btn" data-pick="${esc(m.id)}">${m.featured ? "👑 Seçimi kaldır" : "👑 Haftanın seçimi"}</button></div>
     <a class="download" data-dl="${esc(m.id)}" href="${esc(m.file_url)}" target="_blank" rel="noopener">İndir <b>↓</b></a>
-    ${approveBtn}${holdBtn}
+    ${approveBtn}
     <button class="del-btn" data-del="${esc(m.id)}">Sil</button></div></article>`;
 }
-async function loadMods() {
-  if (!supabaseClient) { filterMods(); return; }
-  const { data, error } = await supabaseClient.from("mods").select("*").order("created_at", { ascending: false });
-  if (error) { count.textContent = "Modlar yüklenemedi"; return; }
-  await loadProfiles();
-  pendingCount = isAdmin ? data.filter(m => m.status && m.status !== "approved").length : 0;
+const MODS_CACHE = "fsmod_cache_v1";
+let loadSeq = 0, shownFromCache = false;
+function renderMods(data, fromCache) {
   const isPend = m => m.status && m.status !== "approved";
+  pendingCount = isAdmin ? data.filter(isPend).length : 0;
   const visible = data.filter(m => isAdmin || !isPend(m) || (currentUid && m.owner_id === currentUid));
   const pendList = isAdmin ? visible.filter(isPend) : [];
   const mainList = isAdmin ? visible.filter(m => !isPend(m)) : visible;
@@ -2240,8 +2239,31 @@ async function loadMods() {
   cards = [...modGrid.querySelectorAll(".mod-card")].filter(c => !c.closest(".pend-section"));
   buildSlider(data);
   updateCatCounts();
-  loadExtras();
+  if (!fromCache) loadExtras();
   filterMods();
+}
+async function loadMods() {
+  if (!supabaseClient) { filterMods(); return; }
+  const seq = ++loadSeq;
+  // 1) Önceki ziyaretten kayıtlı modları hemen göster (anında açılış)
+  if (!shownFromCache) {
+    try {
+      const c = JSON.parse(localStorage.getItem(MODS_CACHE) || "null");
+      if (c && Array.isArray(c.mods) && c.mods.length) { Object.assign(PN, c.pn || {}); renderMods(c.mods, true); shownFromCache = true; }
+    } catch (e) {}
+  }
+  // 2) Güncel veriyi mod listesi ve kullanıcı adlarını AYNI ANDA çekerek al
+  const [res] = await Promise.all([
+    supabaseClient.from("mods").select("*").order("created_at", { ascending: false }),
+    loadProfiles()
+  ]);
+  if (seq !== loadSeq) return;   // daha yeni bir istek başladıysa bunu bırak
+  if (res.error) { if (!shownFromCache) count.textContent = "Modlar yüklenemedi"; return; }
+  renderMods(res.data, false);
+  shownFromCache = true;
+  try {   // önbelleğe sadece onaylı modları yaz
+    localStorage.setItem(MODS_CACHE, JSON.stringify({ mods: res.data.filter(m => !m.status || m.status === "approved"), pn: PN }));
+  } catch (e) {}
 }
 loadMods();
 
@@ -2831,6 +2853,53 @@ LEGAL.guide = ["Android Kurulum Rehberi", `
   let dip;
   window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); dip = e; $("pwaLink").hidden = false; });
   $("pwaLink").addEventListener("click", e => { e.preventDefault(); if (dip) { dip.prompt(); dip = null; $("pwaLink").hidden = true; } });
+})();
+</script>
+<script>
+/* Geri tuşu: açık pencere/menü varsa sadece onu kapatır, siteden çıkarmaz */
+(function () {
+  var nav = document.getElementById('nav');
+  var panels = Array.prototype.slice.call(document.querySelectorAll('.auth-modal, #profileMenu'));
+  if (nav) panels.push(nav);
+
+  function isOpen(el) { return el === nav ? el.classList.contains('open') : !el.hidden; }
+  function close(el) { if (el === nav) el.classList.remove('open'); else el.hidden = true; }
+
+  var stack = [];   // açık olanlar, açılış sırasıyla
+  var skip = 0;     // kendi history.back() çağrımızdan gelen popstate'leri yoksay
+
+  function sync() {
+    var closedNow = 0;
+    // kapananlar
+    stack = stack.filter(function (el) {
+      if (isOpen(el)) return true;
+      closedNow++;
+      return false;
+    });
+    if (closedNow && history.state && history.state.fsOverlay) {
+      skip++;
+      history.go(-closedNow);   // eklediğimiz geçmiş kayıtlarını geri al
+    }
+    // yeni açılanlar
+    panels.forEach(function (el) {
+      if (isOpen(el) && stack.indexOf(el) === -1) {
+        stack.push(el);
+        try { history.pushState({ fsOverlay: stack.length }, ''); } catch (e) {}
+      }
+    });
+  }
+
+  var mo = new MutationObserver(sync);
+  panels.forEach(function (el) {
+    mo.observe(el, { attributes: true, attributeFilter: [el === nav ? 'class' : 'hidden'] });
+  });
+
+  window.addEventListener('popstate', function () {
+    if (skip > 0) { skip = 0; return; }
+    if (!stack.length) return;
+    var top = stack.pop();      // önce listeden çıkar, sonra kapat (tekrar geri gitmesin)
+    close(top);
+  });
 })();
 </script>
 </body></html>
