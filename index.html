@@ -1521,7 +1521,14 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
       let nm = r.name, k = 2;
       while (used.has(nm.toLowerCase())) nm = r.name.replace(/(\.[^.]*)?$/, ' (' + (k++) + ')$1');
       used.add(nm.toLowerCase());
-      const crc = crc32(new Uint8Array(await r.blob.arrayBuffer())), nb = enc.encode(nm), sz = r.blob.size;
+      let crc = 0xFFFFFFFF;
+      for (let o = 0; o < r.blob.size; o += 8388608) {
+        const chunk = new Uint8Array(await r.blob.slice(o, o + 8388608).arrayBuffer());
+        for (let i = 0; i < chunk.length; i++) crc = crcTab[(crc ^ chunk[i]) & 255] ^ (crc >>> 8);
+        await tick();
+      }
+      crc = (crc ^ 0xFFFFFFFF) >>> 0;
+      const nb = enc.encode(nm), sz = r.blob.size;
       const h = new Uint8Array(30), v = new DataView(h.buffer);
       v.setUint32(0, 0x04034b50, true); v.setUint16(4, 20, true); v.setUint16(6, 0x0800, true); v.setUint16(8, 0, true);
       v.setUint32(14, crc, true); v.setUint32(18, sz, true); v.setUint32(22, sz, true); v.setUint16(26, nb.length, true);
@@ -1625,8 +1632,8 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
       if (converted.has(e)) continue;
       const rec = e.rec.slice(); new DataView(rec.buffer).setUint32(42, pos, true);
       cdRecs.push(rec);
-      // Tembel dosya dilimi yerine verinin kendisini belleğe al (content:// dosyalarında indirme 0 bayt çıkıyordu)
-      push(new Uint8Array(await file.slice(e.off, e.end).arrayBuffer()), e.end - e.off);
+      // Dokunulmayan dosyalar belleğe alınmaz; orijinal zip'ten dilim olarak eklenir (400 MB'lık modlarda bellek şişmesin)
+      push(file.slice(e.off, e.end), e.end - e.off);
     }
     for (const a of added) {
       setBar(0.97 + 0.03 * (++stepN) / steps); await tick();
