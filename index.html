@@ -1458,48 +1458,12 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
   }
 
   let results = [];
-  function addDownload(name, blob, thumb, isBundle) {
-    if (!isBundle) results.push({ name, blob });
+  // Çıktıları sadece topla; indirme düğmesi işlem bitince tek yerde gösterilir
+  function addDownload(name, blob, thumb) { results.push({ name, blob, thumb }); }
+  function showDownload(name, blob, thumb) {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.rel = 'noopener';
     if (thumb) a.appendChild(thumb);
     a.appendChild(document.createTextNode('⬇ ' + name + ' (' + kb(blob.size) + ')')); out.appendChild(a);
-    // Büyük dosyalarda indirme bazen sessizce başlamaz: dokunuşta kaydetme penceresini dene
-    a.addEventListener('click', async ev => {
-      if (!window.showSaveFilePicker) return;            // masaüstü Chrome/Edge; telefonda yok -> normal indirme
-      ev.preventDefault();
-      try {
-        const h = await showSaveFilePicker({ suggestedName: name });
-        const w = await h.createWritable(); await blob.stream().pipeTo(w);
-      } catch (e) { if (e && e.name !== 'AbortError') { const x = document.createElement('a'); x.href = a.href; x.download = name; document.body.appendChild(x); x.click(); x.remove(); } }
-    });
-    // Paylaş / Kaydet: Chrome'un indirme yöneticisini atlar, telefonun paylaşım menüsünden Dosyalar/Drive'a kaydettirir
-    try {
-      const f = new File([blob], name, { type: 'application/zip' });
-      if (navigator.canShare && navigator.canShare({ files: [f] })) {
-        const sb = document.createElement('button'); sb.type = 'button'; sb.className = 'primary'; sb.style.cssText = 'display:block;width:100%;margin-top:10px;padding:14px;border:0;font-size:16px;cursor:pointer';
-        sb.textContent = '📤 Paylaş / Dosyalara kaydet (indirme boş çıkarsa bunu kullan)';
-        sb.addEventListener('click', async () => { try { await navigator.share({ files: [f] }); } catch (e) { if (e && e.name !== 'AbortError') alert('Paylaşım açılamadı: ' + e.message); } });
-        out.appendChild(sb);
-      }
-    } catch (e) { /* paylaşım desteklenmiyor */ }
-    const local = !/^https?:$/.test(location.protocol);
-    if (local || blob.size > 5e7) {
-      const note = document.createElement('p'); note.className = 'cvnote';
-      note.textContent = local
-        ? 'Bu sayfa yerel dosya (' + location.protocol + ') olarak açık: tarayıcı bu durumda indirmeyi boş (0 bayt) yazabilir. Güvenilir indirme için siteyi https adresinden aç.'
-        : 'İndirme başlamazsa siteyi https adresinden açıp tekrar dene.';
-      out.appendChild(note);
-    }
-    // Alternatif bağlantı: blob yerine data: adresi (yerel açılışta blob indirmesi boş çıkabiliyor)
-    if (blob.size <= 150e6) {
-      const rd = new FileReader();
-      rd.onload = () => {
-        const b = document.createElement('a'); b.href = rd.result; b.download = name; b.rel = 'noopener';
-        b.textContent = '⬇ ' + name + ' — alternatif indirme (blob boş gelirse bunu dene)';
-        out.appendChild(b);
-      };
-      rd.readAsDataURL(blob);
-    }
   }
   function thumbOf(bytes) {
     try {
@@ -1534,7 +1498,11 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
         } else addLog(n, 'warn', 'desteklenmeyen tür, atlandı');
       }
       sb = 0; ss = 1;
-      if (results.length > 1) await addBundle();
+      if (results.length > 1) {
+        const bb = await addBundle();
+        if (bb) showDownload('Donusturulen_Modlar.zip', bb);
+        else results.forEach(r => showDownload(r.name, r.blob, r.thumb));   // toplu zip olmadıysa tek tek göster
+      } else if (results.length === 1) showDownload(results[0].name, results[0].blob, results[0].thumb);
       setBar(1);
     } catch (e) { addLog('Hata', 'err', (e && e.message) || String(e)); }
     finally { sb = 0; ss = 1; busy = false; go.disabled = !files.length; }
@@ -1567,9 +1535,9 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
     ev.setUint32(0, 0x06054b50, true); ev.setUint16(8, cd.length, true); ev.setUint16(10, cd.length, true); ev.setUint32(12, cdLen, true); ev.setUint32(16, pos, true);
     parts.push(e);
     const blob = new Blob(parts, { type: 'application/zip' });
-    if (blob.size !== pos + cdLen + 22) { stat.className = 'err'; stat.lastChild.textContent = 'toplu zip oluşturulamadı'; return; }
+    if (blob.size !== pos + cdLen + 22) { stat.className = 'err'; stat.lastChild.textContent = 'toplu zip oluşturulamadı'; return null; }
     stat.lastChild.textContent = results.length + ' dosya, ' + kb(blob.size);
-    addDownload('Donusturulen_Modlar.zip', blob, null, true);
+    return blob;
   }
 
   /* ---------- bellek dostu ZIP okuma/yazma ---------- */
