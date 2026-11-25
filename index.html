@@ -1457,7 +1457,9 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
     return set;
   }
 
-  function addDownload(name, blob, thumb) {
+  let results = [];
+  function addDownload(name, blob, thumb, isBundle) {
+    if (!isBundle) results.push({ name, blob });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.rel = 'noopener';
     if (thumb) a.appendChild(thumb);
     a.appendChild(document.createTextNode('⬇ ' + name + ' (' + kb(blob.size) + ')')); out.appendChild(a);
@@ -1470,6 +1472,16 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
         const w = await h.createWritable(); await blob.stream().pipeTo(w);
       } catch (e) { if (e && e.name !== 'AbortError') { const x = document.createElement('a'); x.href = a.href; x.download = name; document.body.appendChild(x); x.click(); x.remove(); } }
     });
+    // Paylaş / Kaydet: Chrome'un indirme yöneticisini atlar, telefonun paylaşım menüsünden Dosyalar/Drive'a kaydettirir
+    try {
+      const f = new File([blob], name, { type: 'application/zip' });
+      if (navigator.canShare && navigator.canShare({ files: [f] })) {
+        const sb = document.createElement('button'); sb.type = 'button'; sb.className = 'primary'; sb.style.cssText = 'display:block;width:100%;margin-top:10px;padding:14px;border:0;font-size:16px;cursor:pointer';
+        sb.textContent = '📤 Paylaş / Dosyalara kaydet (indirme boş çıkarsa bunu kullan)';
+        sb.addEventListener('click', async () => { try { await navigator.share({ files: [f] }); } catch (e) { if (e && e.name !== 'AbortError') alert('Paylaşım açılamadı: ' + e.message); } });
+        out.appendChild(sb);
+      }
+    } catch (e) { /* paylaşım desteklenmiyor */ }
     const local = !/^https?:$/.test(location.protocol);
     if (local || blob.size > 5e7) {
       const note = document.createElement('p'); note.className = 'cvnote';
@@ -1500,7 +1512,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
   }
 
   async function run() {
-    busy = true; go.disabled = true; log.innerHTML = ''; out.innerHTML = ''; bar.style.display = 'block'; pctEl.style.display = 'flex'; t0 = Date.now(); setBar(0);
+    busy = true; go.disabled = true; log.innerHTML = ''; out.innerHTML = ''; results = []; bar.style.display = 'block'; pctEl.style.display = 'flex'; t0 = Date.now(); setBar(0);
     try {
       for (let fi = 0; fi < files.length; fi++) {
         const f = files[fi]; sb = fi / files.length; ss = 1 / files.length;
@@ -1521,9 +1533,43 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
           }
         } else addLog(n, 'warn', 'desteklenmeyen tür, atlandı');
       }
-      sb = 0; ss = 1; setBar(1);
+      sb = 0; ss = 1;
+      if (results.length > 1) await addBundle();
+      setBar(1);
     } catch (e) { addLog('Hata', 'err', (e && e.message) || String(e)); }
     finally { sb = 0; ss = 1; busy = false; go.disabled = !files.length; }
+  }
+
+
+  /* ---------- birden fazla çıktıyı tek zip'te topla (sıkıştırmasız, dosyalar aynen içine konur) ---------- */
+  async function addBundle() {
+    const stat = addLog('Hepsi tek zip\'e toplanıyor…', '', '');
+    await tick();
+    const enc = new TextEncoder(), parts = [], cd = [], used = new Set();
+    let pos = 0;
+    for (const r of results) {
+      let nm = r.name, k = 2;
+      while (used.has(nm.toLowerCase())) nm = r.name.replace(/(\.[^.]*)?$/, ' (' + (k++) + ')$1');
+      used.add(nm.toLowerCase());
+      const crc = crc32(new Uint8Array(await r.blob.arrayBuffer())), nb = enc.encode(nm), sz = r.blob.size;
+      const h = new Uint8Array(30), v = new DataView(h.buffer);
+      v.setUint32(0, 0x04034b50, true); v.setUint16(4, 20, true); v.setUint16(6, 0x0800, true); v.setUint16(8, 0, true);
+      v.setUint32(14, crc, true); v.setUint32(18, sz, true); v.setUint32(22, sz, true); v.setUint16(26, nb.length, true);
+      const c = new Uint8Array(46 + nb.length), w = new DataView(c.buffer);
+      w.setUint32(0, 0x02014b50, true); w.setUint16(4, 20, true); w.setUint16(6, 20, true); w.setUint16(8, 0x0800, true);
+      w.setUint32(16, crc, true); w.setUint32(20, sz, true); w.setUint32(24, sz, true); w.setUint16(28, nb.length, true); w.setUint32(42, pos, true);
+      c.set(nb, 46); cd.push(c);
+      parts.push(h, nb, r.blob); pos += 30 + nb.length + sz;
+      await tick();
+    }
+    let cdLen = 0; for (const c of cd) { parts.push(c); cdLen += c.length; }
+    const e = new Uint8Array(22), ev = new DataView(e.buffer);
+    ev.setUint32(0, 0x06054b50, true); ev.setUint16(8, cd.length, true); ev.setUint16(10, cd.length, true); ev.setUint32(12, cdLen, true); ev.setUint32(16, pos, true);
+    parts.push(e);
+    const blob = new Blob(parts, { type: 'application/zip' });
+    if (blob.size !== pos + cdLen + 22) { stat.className = 'err'; stat.lastChild.textContent = 'toplu zip oluşturulamadı'; return; }
+    stat.lastChild.textContent = results.length + ' dosya, ' + kb(blob.size);
+    addDownload('Donusturulen_Modlar.zip', blob, null, true);
   }
 
   /* ---------- bellek dostu ZIP okuma/yazma ---------- */
