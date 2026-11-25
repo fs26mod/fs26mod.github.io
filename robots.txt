@@ -1,4 +1,3 @@
 User-agent: *
 Allow: /
-
 Sitemap: https://fs26mod.github.io/sitemap.xml
