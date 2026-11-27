@@ -402,6 +402,7 @@ body.has-slider .search-wrap{margin-top:16px!important}
       <button id="myMods"><i>📦</i>Modlarım</button>
       <button id="openUpload" hidden><i>⬆️</i>Mod Yükle</button>
       <button id="myPending" class="admin-only"><i>⏳</i><span id="myPendingLabel">Onay Bekleyenler</span></button>
+      <button id="myStats" class="admin-only"><i>📊</i>Ziyaretçi İstatistik</button>
       <hr>
       <button id="mySaved"><i>🔖</i>Kaydettiklerim</button>
       <hr>
@@ -1092,7 +1093,7 @@ function mipCount(w, h) {                       // örneklerde: en küçük kena
   const m = Math.min(w, h);
   return Math.max(1, Math.round(Math.log2(m)) - 1);
 }
-const tick = () => new Promise(r => setTimeout(r, 0));
+const tick = (() => { const ch = new MessageChannel(); let q = []; ch.port1.onmessage = () => { const f = q; q = []; f.forEach(r => r()); }; return () => new Promise(r => { q.push(r); ch.port2.postMessage(0); }); })();
 
 async function encodeLevel(rgba, w, h, onBlocks) {
   const bx = Math.ceil(w / BW), by = Math.ceil(h / BH), out = new Uint8Array(bx * by * 16), blk = new Uint8Array(NPIX * 4);
@@ -1450,7 +1451,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
   };
   const kb = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.round(n / 1024) + ' KB';
   const base = p => p.split('/').pop();
-  const tick = () => new Promise(r => setTimeout(r, 0));
+  const tick = (() => { const ch = new MessageChannel(); let q = []; ch.port1.onmessage = () => { const f = q; q = []; f.forEach(r => r()); }; return () => new Promise(r => { q.push(r); ch.port2.postMessage(0); }); })();
 
   async function imageToRGBA(file) {                       // PNG/JPG/WEBP
     const bmp = await createImageBitmap(file);
@@ -1491,10 +1492,10 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
   let results = [];
   // Çıktıları sadece topla; indirme düğmesi işlem bitince tek yerde gösterilir
   function addDownload(name, blob, thumb) { results.push({ name, blob, thumb }); }
-  function showDownload(name, blob, thumb) {
+  function showDownload(name, blob, thumb, auto) {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.rel = 'noopener';
     if (thumb) a.appendChild(thumb);
-    a.appendChild(document.createTextNode('⬇ ' + name + ' (' + kb(blob.size) + ')')); out.appendChild(a);
+    a.appendChild(document.createTextNode('⬇ ' + name + ' (' + kb(blob.size) + ')')); out.appendChild(a); if (auto) setTimeout(() => { try { a.click(); } catch (_) {} }, 400);
   }
   function thumbOf(bytes) {
     try {
@@ -1507,7 +1508,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
   }
 
   async function run() {
-    busy = true; go.disabled = true; log.innerHTML = ''; out.innerHTML = ''; results = []; bar.style.display = 'block'; pctEl.style.display = 'flex'; t0 = Date.now(); setBar(0);
+    busy = true; let wl = null; try { if (navigator.wakeLock) wl = await navigator.wakeLock.request('screen'); } catch (_) {} go.disabled = true; log.innerHTML = ''; out.innerHTML = ''; results = []; bar.style.display = 'block'; pctEl.style.display = 'flex'; t0 = Date.now(); setBar(0);
     try {
       for (let fi = 0; fi < files.length; fi++) {
         const f = files[fi]; sb = fi / files.length; ss = 1 / files.length;
@@ -1531,12 +1532,12 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
       sb = 0; ss = 1;
       if (results.length > 1) {
         const bb = await addBundle();
-        if (bb) showDownload('Donusturulen_Modlar.zip', bb);
+        if (bb) showDownload('Donusturulen_Modlar.zip', bb, null, true);
         else results.forEach(r => showDownload(r.name, r.blob, r.thumb));   // toplu zip olmadıysa tek tek göster
-      } else if (results.length === 1) showDownload(results[0].name, results[0].blob, results[0].thumb);
+      } else if (results.length === 1) showDownload(results[0].name, results[0].blob, results[0].thumb, true);
       setBar(1);
     } catch (e) { addLog('Hata', 'err', (e && e.message) || String(e)); }
-    finally { sb = 0; ss = 1; busy = false; go.disabled = !files.length; }
+    finally { try { if (wl) wl.release(); } catch (_) {} sb = 0; ss = 1; busy = false; go.disabled = !files.length; }
   }
 
 
@@ -2031,6 +2032,7 @@ function renderAccount(session) {
   isAdmin = !!user && (user.email || "").toLowerCase() === ADMIN_EMAIL;
   document.body.classList.toggle("is-admin", isAdmin);
   if (wasAdmin !== isAdmin) loadMods();
+  if (isAdmin) { try { localStorage.setItem("fs_nocount", "1"); } catch (_) {} }
   loginBtnEl.hidden = !!user;
   registerBtnEl.hidden = !!user;
   profileWrap.hidden = !user;
@@ -2186,6 +2188,48 @@ document.getElementById("myPending").addEventListener("click", () => {
   const el = document.getElementById("pendSection");
   if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   else { showToast("Onay bekleyen mod yok."); goTo("#mods"); }
+});
+/* ---------- Ziyaretçi sayacı: kayıt herkesten, okuma SADECE admin (Supabase visit_stats) ---------- */
+(function () {
+  if (!supabaseClient) return;
+  try { if (localStorage.getItem("fs_nocount") || sessionStorage.getItem("fs_visit")) return; sessionStorage.setItem("fs_visit", "1"); } catch (_) { return; }
+  setTimeout(() => {
+    if (isAdmin) return;
+    let vid = "";
+    try { vid = localStorage.getItem("fs_vid") || ""; if (!vid) { vid = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2); localStorage.setItem("fs_vid", vid); } } catch (_) { vid = "anon"; }
+    let ref = ""; try { ref = document.referrer ? new URL(document.referrer).hostname : ""; } catch (_) {}
+    supabaseClient.from("visits").insert({ visitor_id: vid, referrer: ref.slice(0, 200), lang: (navigator.language || "").slice(0, 16) }).then(() => {}, () => {});
+  }, 2500);
+})();
+document.getElementById("myStats").addEventListener("click", async () => {
+  profileMenu.hidden = true;
+  let box = document.getElementById("statsModal");
+  if (!box) {
+    box = document.createElement("div"); box.id = "statsModal";
+    box.style.cssText = "position:fixed;inset:0;z-index:80;background:#000c;display:flex;align-items:center;justify-content:center;padding:16px";
+    box.addEventListener("click", (e) => { if (e.target === box) box.hidden = true; });
+    document.body.appendChild(box);
+  }
+  box.hidden = false;
+  const card = (inner) => '<div style="background:#0d100d;border:1px solid #2a3a1a;border-radius:18px;padding:18px;width:100%;max-width:420px;max-height:88vh;overflow:auto;color:#f2f5f2">' + inner + '</div>';
+  box.innerHTML = card("Yükleniyor…");
+  const { data, error } = await supabaseClient.rpc("visit_stats");
+  if (error || !data) {
+    box.innerHTML = card('<b>İstatistik alınamadı</b><p style="font-size:14px;opacity:.8">' + esc((error && error.message) || "") + '</p><p style="font-size:13px;opacity:.7">ziyaretci_sayaci.sql dosyasını Supabase SQL Editor\'de çalıştırdığından ve admin hesabıyla girdiğinden emin ol.</p><button id="stClose" style="margin-top:10px;padding:10px 16px;border-radius:10px;border:0;background:#7ee000;font-weight:800">Kapat</button>');
+    document.getElementById("stClose").onclick = () => { box.hidden = true; };
+    return;
+  }
+  const n = (v) => Number(v || 0).toLocaleString("tr");
+  const tile = (t, v, u) => '<div style="background:#141a14;border-radius:12px;padding:12px"><div style="font-size:12px;opacity:.7">' + t + '</div><div style="font-size:24px;font-weight:800;color:#a8d400">' + n(v) + '</div><div style="font-size:12px;opacity:.7">' + n(u) + ' tekil</div></div>';
+  const daily = data.daily || [], max = Math.max(1, ...daily.map(d => Number(d.c)));
+  const rows = daily.slice().reverse().map(d => '<div style="display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0"><span style="width:62px;opacity:.7">' + esc(String(d.d).slice(5).split("-").reverse().join(".")) + '</span><span style="flex:1;background:#141a14;border-radius:6px;overflow:hidden"><i style="display:block;height:10px;background:#7ee000;width:' + Math.round(100 * Number(d.c) / max) + '%"></i></span><b style="width:70px;text-align:right">' + n(d.c) + ' / ' + n(d.u) + '</b></div>').join("");
+  const refs = (data.refs || []).map(r => '<div style="display:flex;justify-content:space-between;font-size:13px;margin:3px 0"><span>' + esc(r.ref) + '</span><b>' + n(r.c) + '</b></div>').join("") || '<span style="font-size:13px;opacity:.6">Henüz yok</span>';
+  box.innerHTML = card('<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><b style="font-size:18px">📊 Ziyaretçi İstatistik</b><button id="stClose" style="background:none;border:0;color:#fff;font-size:22px">✕</button></div>'
+    + '<p style="font-size:12px;opacity:.6;margin:0 0 10px">Sadece sen görüyorsun. Kendi girişlerin sayılmaz.</p>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' + tile("Bugün", data.today, data.today_u) + tile("Son 7 gün", data.d7, data.d7_u) + tile("Son 30 gün", data.d30, data.d30_u) + tile("Toplam", data.total, data.total_u) + '</div>'
+    + '<h4 style="margin:16px 0 6px;font-size:14px">Son 14 gün (ziyaret / tekil)</h4>' + (rows || '<span style="font-size:13px;opacity:.6">Henüz veri yok</span>')
+    + '<h4 style="margin:16px 0 6px;font-size:14px">Nereden geldiler (30 gün)</h4>' + refs);
+  document.getElementById("stClose").onclick = () => { box.hidden = true; };
 });
 document.getElementById("myMods").addEventListener("click", () => { profileMenu.hidden = true; pickGame("Tümü"); ownerFilter = currentUid; ownerName = "Modlarım"; filterMods(); goTo("#mods"); });
 modGrid.addEventListener("click", (e) => {
