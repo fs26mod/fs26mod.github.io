@@ -1498,11 +1498,44 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
 
   let results = [];
   // Çıktıları sadece topla; indirme düğmesi işlem bitince tek yerde gösterilir
+  /* Büyük çıktılar (yüzlerce MB): Chrome'un blob indirmesi takılabiliyor; Service Worker ile doğrudan akıtarak indir.
+     sw.js yoksa ya da tarayıcı desteklemiyorsa eski yönteme (blob bağlantısı) düşer. */
+  const BIG = 50e6; let swReg = null;
+  function getSW() {
+    if (swReg) return swReg;
+    swReg = (async () => {
+      if (!('serviceWorker' in navigator) || !window.isSecureContext || typeof TransformStream === 'undefined') return null;
+      try { const t = new TransformStream(), mc = new MessageChannel(); mc.port1.postMessage(t.readable, [t.readable]); } catch (_) { return null; }   // aktarılabilir stream desteği
+      await navigator.serviceWorker.register('sw.js');
+      await navigator.serviceWorker.ready;
+      if (!navigator.serviceWorker.controller) await new Promise(r => { navigator.serviceWorker.addEventListener('controllerchange', r, { once: true }); setTimeout(r, 2500); });
+      return navigator.serviceWorker.controller ? true : null;
+    })().catch(() => null);
+    return swReg;
+  }
+  async function streamSave(name, blob) {
+    if (!(await getSW())) return false;
+    const ctl = navigator.serviceWorker.controller; if (!ctl) return false;
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8), ts = new TransformStream(), mc = new MessageChannel();
+    const ack = new Promise(res => { mc.port1.onmessage = () => res(true); setTimeout(() => res(false), 3000); });
+    ctl.postMessage({ type: 'fsdl', id, name, size: blob.size, stream: ts.readable }, [ts.readable, mc.port2]);
+    if (!(await ack)) return false;
+    const ping = setInterval(() => { try { ctl.postMessage({ type: 'ping' }); } catch (_) {} }, 10000);
+    blob.stream().pipeTo(ts.writable).catch(() => {}).finally(() => clearInterval(ping));
+    const f = document.createElement('iframe'); f.hidden = true; f.src = new URL('__fsdl/' + id, document.baseURI).href;   // <a download> Service Worker'a uğramıyor; iframe uğruyor
+    document.body.appendChild(f); setTimeout(() => f.remove(), 90000);
+    return true;
+  }
+  async function saveBlob(name, blob, a) {
+    if (blob.size > BIG) { try { if (await streamSave(name, blob)) return; } catch (_) {} }
+    a.dataset.plain = '1'; a.click(); delete a.dataset.plain;   // yedek: normal blob indirmesi
+  }
   function addDownload(name, blob, thumb) { results.push({ name, blob, thumb }); }
   function showDownload(name, blob, thumb, auto) {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.rel = 'noopener';
+    a.addEventListener('click', ev => { if (a.dataset.plain || blob.size <= BIG) return; ev.preventDefault(); saveBlob(name, blob, a); });
     if (thumb) a.appendChild(thumb);
-    a.appendChild(document.createTextNode('⬇ ' + name + ' (' + kb(blob.size) + ')')); out.appendChild(a); if (auto) setTimeout(() => { try { a.click(); } catch (_) {} }, 400);
+    a.appendChild(document.createTextNode('⬇ ' + name + ' (' + kb(blob.size) + ')')); out.appendChild(a); if (auto) setTimeout(() => { try { if (blob.size > BIG) saveBlob(name, blob, a); else a.click(); } catch (_) {} }, 400);
   }
   function thumbOf(bytes) {
     try {
@@ -1650,7 +1683,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
         const buf = await readEntry(file, e), kind = kindOf(e.name, icons);
         const r = await convertTexture(e.name, buf, kind, p => setBar(0.1 + 0.87 * (doneW + p * w) / totalW));
         converted.add(e);
-        added.push({ name: e.name.replace(/\.dds$/i, '.ast'), data: r.bytes });
+        added.push({ name: e.name.replace(/\.dds$/i, '.ast'), blob: new Blob([r.bytes]), size: r.bytes.length, crc: crc32(r.bytes) });   // bayt dizisi hemen bırakılır, bellek şişmez
         li.lastChild.textContent = `${r.srcW}×${r.srcH} → ${r.width}×${r.height}, ${r.mips} mip, ${kb(r.bytes.length)}`;
       } catch (err) {
         if (/^Desteklenmeyen DDS/i.test(err.message)) { skipped++; li.className = 'warn'; li.lastChild.textContent = 'desteklenmeyen biçim, .dds olduğu gibi bırakıldı'; }
@@ -1674,15 +1707,15 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
     }
     for (const a of added) {
       setBar(0.97 + 0.03 * (++stepN) / steps); await tick();
-      const nb = enc.encode(a.name), h = new Uint8Array(30), v = new DataView(h.buffer), crc = crc32(a.data);
+      const nb = enc.encode(a.name), h = new Uint8Array(30), v = new DataView(h.buffer), crc = a.crc;
       v.setUint32(0, 0x04034b50, true); v.setUint16(4, 20, true); v.setUint16(6, 0x0800, true); v.setUint16(8, 0, true);
-      v.setUint16(10, dt, true); v.setUint16(12, dd, true); v.setUint32(14, crc, true); v.setUint32(18, a.data.length, true); v.setUint32(22, a.data.length, true); v.setUint16(26, nb.length, true);
+      v.setUint16(10, dt, true); v.setUint16(12, dd, true); v.setUint32(14, crc, true); v.setUint32(18, a.size, true); v.setUint32(22, a.size, true); v.setUint16(26, nb.length, true);
       const rec = new Uint8Array(46 + nb.length), r = new DataView(rec.buffer);
       r.setUint32(0, 0x02014b50, true); r.setUint16(4, 20, true); r.setUint16(6, 20, true); r.setUint16(8, 0x0800, true); r.setUint16(10, 0, true);
-      r.setUint16(12, dt, true); r.setUint16(14, dd, true); r.setUint32(16, crc, true); r.setUint32(20, a.data.length, true); r.setUint32(24, a.data.length, true);
+      r.setUint16(12, dt, true); r.setUint16(14, dd, true); r.setUint32(16, crc, true); r.setUint32(20, a.size, true); r.setUint32(24, a.size, true);
       r.setUint16(28, nb.length, true); r.setUint32(42, pos, true); rec.set(nb, 46);
       cdRecs.push(rec);
-      push(h, 30); push(nb, nb.length); push(a.data, a.data.length); a.data = null;
+      push(h, 30); push(nb, nb.length); push(a.blob, a.size); a.blob = null;
     }
     const cdStart = pos; let cdLen = 0;
     for (const rec of cdRecs) { parts.push(rec); cdLen += rec.length; }
@@ -2232,12 +2265,13 @@ document.getElementById("myStats").addEventListener("click", async () => {
     document.body.appendChild(box);
   }
   box.style.display = "flex";
+  const bindClose = () => box.querySelectorAll("[data-stclose]").forEach(b => { b.onclick = () => { box.style.display = "none"; }; });
   const card = (inner) => '<div style="background:#0d100d;border:1px solid #2a3a1a;border-radius:18px;padding:18px;width:100%;max-width:420px;max-height:88vh;overflow:auto;color:#f2f5f2">' + inner + '</div>';
   box.innerHTML = card("Yükleniyor…");
   const { data, error } = await supabaseClient.rpc("visit_stats");
   if (error || !data) {
-    box.innerHTML = card('<b>İstatistik alınamadı</b><p style="font-size:14px;opacity:.8">' + esc((error && error.message) || "") + '</p><p style="font-size:13px;opacity:.7">ziyaretci_sayaci.sql dosyasını Supabase SQL Editor\'de çalıştırdığından ve admin hesabıyla girdiğinden emin ol.</p><button id="stClose" style="margin-top:10px;padding:10px 16px;border-radius:10px;border:0;background:#7ee000;font-weight:800">Kapat</button>');
-    document.getElementById("stClose").onclick = () => { box.style.display = "none"; };
+    box.innerHTML = card('<b>İstatistik alınamadı</b><p style="font-size:14px;opacity:.8">' + esc((error && error.message) || "") + '</p><p style="font-size:13px;opacity:.7">ziyaretci_sayaci.sql dosyasını Supabase SQL Editor\'de çalıştırdığından ve admin hesabıyla girdiğinden emin ol.</p><button data-stclose style="margin-top:10px;padding:12px 18px;border-radius:12px;border:0;background:#7ee000;font-weight:800;font-size:15px">Kapat</button>');
+    bindClose();
     return;
   }
   const n = (v) => Number(v || 0).toLocaleString("tr");
@@ -2245,12 +2279,12 @@ document.getElementById("myStats").addEventListener("click", async () => {
   const daily = data.daily || [], max = Math.max(1, ...daily.map(d => Number(d.c)));
   const rows = daily.slice().reverse().map(d => '<div style="display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0"><span style="width:62px;opacity:.7">' + esc(String(d.d).slice(5).split("-").reverse().join(".")) + '</span><span style="flex:1;background:#141a14;border-radius:6px;overflow:hidden"><i style="display:block;height:10px;background:#7ee000;width:' + Math.round(100 * Number(d.c) / max) + '%"></i></span><b style="width:70px;text-align:right">' + n(d.c) + ' / ' + n(d.u) + '</b></div>').join("");
   const refs = (data.refs || []).map(r => '<div style="display:flex;justify-content:space-between;font-size:13px;margin:3px 0"><span>' + esc(r.ref) + '</span><b>' + n(r.c) + '</b></div>').join("") || '<span style="font-size:13px;opacity:.6">Henüz yok</span>';
-  box.innerHTML = card('<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><b style="font-size:18px">📊 Ziyaretçi İstatistik</b><button id="stClose" style="background:none;border:0;color:#fff;font-size:22px">✕</button></div>'
+  box.innerHTML = card('<div style="position:sticky;top:-18px;z-index:1;background:#0d100d;display:flex;justify-content:space-between;align-items:center;margin:-18px -18px 12px;padding:14px 18px"><b style="font-size:18px">📊 Ziyaretçi İstatistik</b><button data-stclose aria-label="Kapat" style="background:#1d261d;border:0;color:#fff;font-size:20px;width:40px;height:40px;border-radius:10px">✕</button></div>'
     + '<p style="font-size:12px;opacity:.6;margin:0 0 10px">Sadece sen görüyorsun. Kendi girişlerin sayılmaz.</p>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' + tile("Bugün", data.today, data.today_u) + tile("Son 7 gün", data.d7, data.d7_u) + tile("Son 30 gün", data.d30, data.d30_u) + tile("Toplam", data.total, data.total_u) + '</div>'
     + '<h4 style="margin:16px 0 6px;font-size:14px">Son 14 gün (ziyaret / tekil)</h4>' + (rows || '<span style="font-size:13px;opacity:.6">Henüz veri yok</span>')
-    + '<h4 style="margin:16px 0 6px;font-size:14px">Nereden geldiler (30 gün)</h4>' + refs);
-  document.getElementById("stClose").onclick = () => { box.style.display = "none"; };
+    + '<h4 style="margin:16px 0 6px;font-size:14px">Nereden geldiler (30 gün)</h4>' + refs + '<div style="position:sticky;bottom:-18px;background:#0d100d;margin:14px -18px -18px;padding:12px 18px"><button data-stclose style="width:100%;padding:13px;border-radius:12px;border:0;background:#7ee000;font-weight:800;font-size:15px">Kapat</button></div>');
+  bindClose();
 });
 document.getElementById("myMods").addEventListener("click", () => { profileMenu.hidden = true; pickGame("Tümü"); ownerFilter = currentUid; ownerName = "Modlarım"; filterMods(); goTo("#mods"); });
 modGrid.addEventListener("click", (e) => {
