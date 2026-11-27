@@ -1520,8 +1520,7 @@ body.cv-busy{padding-top:52px}
   function getSW() {
     if (swReg) return swReg;
     swReg = (async () => {
-      if (!('serviceWorker' in navigator) || !window.isSecureContext || typeof TransformStream === 'undefined') return null;
-      try { const t = new TransformStream(), mc = new MessageChannel(); mc.port1.postMessage(t.readable, [t.readable]); } catch (_) { return null; }   // aktarılabilir stream desteği
+      if (!('serviceWorker' in navigator) || !window.isSecureContext) return null;
       await navigator.serviceWorker.register('sw.js');
       await navigator.serviceWorker.ready;
       if (!navigator.serviceWorker.controller) await new Promise(r => { navigator.serviceWorker.addEventListener('controllerchange', r, { once: true }); setTimeout(r, 2500); });
@@ -1532,14 +1531,13 @@ body.cv-busy{padding-top:52px}
   async function streamSave(name, blob) {
     if (!(await getSW())) return false;
     const ctl = navigator.serviceWorker.controller; if (!ctl) return false;
-    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8), ts = new TransformStream(), mc = new MessageChannel();
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8), mc = new MessageChannel();
     const ack = new Promise(res => { mc.port1.onmessage = () => res(true); setTimeout(() => res(false), 3000); });
-    ctl.postMessage({ type: 'fsdl', id, name, size: blob.size, stream: ts.readable }, [ts.readable, mc.port2]);
+    // Blob doğrudan Service Worker'a verilir: indirme sayfaya bağlı değil, sekme arka plana gitse / ekran kapansa da sürer
+    ctl.postMessage({ type: 'fsdl', id, name, size: blob.size, blob }, [mc.port2]);
     if (!(await ack)) return false;
-    const ping = setInterval(() => { try { ctl.postMessage({ type: 'ping' }); } catch (_) {} }, 10000);
-    blob.stream().pipeTo(ts.writable).catch(() => {}).finally(() => clearInterval(ping));
     const f = document.createElement('iframe'); f.hidden = true; f.src = new URL('__fsdl/' + id, document.baseURI).href;   // <a download> Service Worker'a uğramıyor; iframe uğruyor
-    document.body.appendChild(f); setTimeout(() => f.remove(), 90000);
+    document.body.appendChild(f); setTimeout(() => f.remove(), 120000);
     return true;
   }
   async function saveBlob(name, blob, a) {
@@ -1550,9 +1548,9 @@ body.cv-busy{padding-top:52px}
   function addDownload(name, blob, thumb, crc) { results.push({ name, blob, thumb, crc }); }
   function showDownload(name, blob, thumb, auto) {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.rel = 'noopener';
-    a.addEventListener('click', ev => { if (a.dataset.plain || blob.size <= BIG) return; ev.preventDefault(); try { showToast('İndirme başlatılıyor…'); } catch (_) {} saveBlob(name, blob, a); });
+    a.addEventListener('click', ev => { if (a.dataset.plain || blob.size <= BIG) return; ev.preventDefault(); if (a.dataset.busy) { try { showToast('İndirme zaten başladı, Chrome > İndirilenler\'den takip et'); } catch (_) {} return; } a.dataset.busy = '1'; setTimeout(() => { delete a.dataset.busy; }, 60000); try { showToast('İndirme başlatılıyor…'); } catch (_) {} saveBlob(name, blob, a); });
     if (thumb) a.appendChild(thumb);
-    a.appendChild(document.createTextNode('⬇ ' + name + ' (' + kb(blob.size) + ')')); out.appendChild(a); if (auto) setTimeout(() => { try { if (blob.size > BIG) saveBlob(name, blob, a); else a.click(); } catch (_) {} }, 400);
+    a.appendChild(document.createTextNode('⬇ ' + name + ' (' + kb(blob.size) + ')')); out.appendChild(a); if (auto && blob.size <= BIG) setTimeout(() => { try { a.click(); } catch (_) {} }, 400);
   }
   function thumbOf(bytes) {
     try {
