@@ -1410,6 +1410,7 @@ body.cv-busy{padding-top:52px}
       <label><input type="checkbox" id="cvMips" checked><span>Mipmap oluştur<small>Doku dosyaları için önerilir. İkonlar her zaman mipsiz yazılır.</small></span></label>
       <label><input type="checkbox" id="cvSpec" checked><span>Specular haritalarını en fazla 512 px yap<small>Örnek FS26 paketinde böyle küçültülmüş.</small></span></label>
       <label><input type="checkbox" id="cvIcon" checked><span>Mağaza ikonlarını 512 px yap<small>iconFilename ve store ikonları.</small></span></label>
+      <label><input type="checkbox" id="cvPng"><span>.dds dosyalarını PNG'ye çevir (AST yerine)<small>Sadece tek tek seçilen .dds dosyaları için. .zip içindekiler yine .ast olur.</small></span></label>
     </div>
     <button id="cvGo" disabled>Dönüştür</button>
     <div id="cvBar"><i></i></div>
@@ -1569,7 +1570,25 @@ body.cv-busy{padding-top:52px}
         const f = files[fi]; sb = fi / files.length; ss = 1 / files.length;
         const n = f.name, lower = n.toLowerCase();
         if (lower.endsWith('.zip')) await runZip(f);
-        else if (/\.(dds|png|jpe?g|webp)$/.test(lower)) {
+        else if (lower.endsWith('.dds') && $('cvPng') && $('cvPng').checked) {
+          const li = addLog(n, '', "PNG'ye çevriliyor…");
+          try {
+            const buf = new Uint8Array(await f.arrayBuffer());
+            const d = FSConv.decodeDDS(buf);
+            const c = document.createElement('canvas'); c.width = d.width; c.height = d.height;
+            c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(d.rgba), d.width, d.height), 0, 0);
+            const pblob = await new Promise((res, rej) => c.toBlob(x => x ? res(x) : rej(new Error('PNG oluşturulamadı')), 'image/png'));
+            const pb = new Uint8Array(await pblob.arrayBuffer());
+            const th = document.createElement('canvas'), k = Math.min(1, 96 / Math.max(d.width, d.height));
+            th.width = Math.max(1, Math.round(d.width * k)); th.height = Math.max(1, Math.round(d.height * k));
+            th.getContext('2d').drawImage(c, 0, 0, th.width, th.height);
+            li.lastChild.textContent = `${d.width}×${d.height}, ${kb(pblob.size)}`;
+            addDownload(n.replace(/\.[^.]+$/, '') + '.png', pblob, th, results.length || files.length > 1 ? crc32(pb) : null);
+          } catch (e) {
+            if (/^Desteklenmeyen DDS/i.test(e.message)) { li.className = 'warn'; li.lastChild.textContent = 'desteklenmeyen biçim, dönüştürülmedi'; }
+            else { li.className = 'err'; li.lastChild.textContent = e.message; }
+          }
+        } else if (/\.(dds|png|jpe?g|webp)$/.test(lower)) {
           const li = addLog(n, '', 'işleniyor…');
           try {
             const buf = new Uint8Array(await f.arrayBuffer());
