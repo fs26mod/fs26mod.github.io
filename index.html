@@ -351,6 +351,13 @@ body.has-slider .search-wrap{margin-top:16px!important}
 @keyframes sheetFade{from{opacity:0}to{opacity:1}}
 #profileMenu:not([hidden]){animation:sheetFade .6s ease}
 #profileMenu:not([hidden]) .sheet{animation:sheetUp .7s cubic-bezier(.16,.84,.28,1)}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes modalIn{from{opacity:0;transform:translateY(22px) scale(.95)}to{opacity:1;transform:none}}
+@keyframes cardIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+.auth-modal:not([hidden]){animation:fadeIn .4s ease}
+.auth-modal:not([hidden])>.auth-box,.auth-modal:not([hidden])>.gallery-box{animation:modalIn .55s cubic-bezier(.16,.84,.28,1) backwards}
+.mod-card{animation:cardIn .6s ease backwards;transition:transform .3s ease,border-color .3s ease}
+@media (prefers-reduced-motion:reduce){.auth-modal:not([hidden]),.auth-modal:not([hidden])>.auth-box,.auth-modal:not([hidden])>.gallery-box,.mod-card{animation:none}}
 </style>
 <style>
 #sortSel{background:#151c17;color:#e7eee7;border:1px solid #344037;border-radius:8px;padding:9px 10px;margin:0 0 14px;font-size:14px}
@@ -2080,10 +2087,24 @@ function timeAgo(d) {
   if (m < 43200) return Math.round(m / 1440) + " gün önce";
   return Math.round(m / 43200) + " ay önce";
 }
-function goSlide(i) { slideIdx = i; slidesEl.scrollTo({ left: i * slidesEl.clientWidth, behavior: "smooth" }); }
+function goSlide(i) {
+  slideIdx = i;
+  const from = slidesEl.scrollLeft, to = i * slidesEl.clientWidth;
+  cancelAnimationFrame(slidesEl._raf);
+  if (Math.abs(to - from) < 2) return;
+  const t0 = performance.now(), dur = 900;
+  slidesEl.style.scrollSnapType = "none";
+  const step = (now) => {
+    const p = Math.min(1, (now - t0) / dur), e = p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+    slidesEl.scrollLeft = from + (to - from) * e;
+    if (p < 1) slidesEl._raf = requestAnimationFrame(step); else slidesEl.style.scrollSnapType = "";
+  };
+  slidesEl._raf = requestAnimationFrame(step);
+}
+slidesEl.addEventListener("touchstart", () => { cancelAnimationFrame(slidesEl._raf); slidesEl.style.scrollSnapType = ""; }, { passive: true });
 function startSlider() {
   clearInterval(sliderTimer);
-  if (slideCount > 1) sliderTimer = setInterval(() => goSlide((slideIdx + 1) % slideCount), 4000);
+  if (slideCount > 1) sliderTimer = setInterval(() => goSlide((slideIdx + 1) % slideCount), 5500);
 }
 function buildSlider(data) {
   const list = data.filter(m => (!m.status || m.status === "approved") && imgsOf(m).length).slice(0, 8);
@@ -2207,16 +2228,16 @@ document.getElementById("myStats").addEventListener("click", async () => {
   if (!box) {
     box = document.createElement("div"); box.id = "statsModal";
     box.style.cssText = "position:fixed;inset:0;z-index:80;background:#000c;display:flex;align-items:center;justify-content:center;padding:16px";
-    box.addEventListener("click", (e) => { if (e.target === box) box.hidden = true; });
+    box.addEventListener("click", (e) => { if (e.target === box) box.style.display = "none"; });
     document.body.appendChild(box);
   }
-  box.hidden = false;
+  box.style.display = "flex";
   const card = (inner) => '<div style="background:#0d100d;border:1px solid #2a3a1a;border-radius:18px;padding:18px;width:100%;max-width:420px;max-height:88vh;overflow:auto;color:#f2f5f2">' + inner + '</div>';
   box.innerHTML = card("Yükleniyor…");
   const { data, error } = await supabaseClient.rpc("visit_stats");
   if (error || !data) {
     box.innerHTML = card('<b>İstatistik alınamadı</b><p style="font-size:14px;opacity:.8">' + esc((error && error.message) || "") + '</p><p style="font-size:13px;opacity:.7">ziyaretci_sayaci.sql dosyasını Supabase SQL Editor\'de çalıştırdığından ve admin hesabıyla girdiğinden emin ol.</p><button id="stClose" style="margin-top:10px;padding:10px 16px;border-radius:10px;border:0;background:#7ee000;font-weight:800">Kapat</button>');
-    document.getElementById("stClose").onclick = () => { box.hidden = true; };
+    document.getElementById("stClose").onclick = () => { box.style.display = "none"; };
     return;
   }
   const n = (v) => Number(v || 0).toLocaleString("tr");
@@ -2229,7 +2250,7 @@ document.getElementById("myStats").addEventListener("click", async () => {
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' + tile("Bugün", data.today, data.today_u) + tile("Son 7 gün", data.d7, data.d7_u) + tile("Son 30 gün", data.d30, data.d30_u) + tile("Toplam", data.total, data.total_u) + '</div>'
     + '<h4 style="margin:16px 0 6px;font-size:14px">Son 14 gün (ziyaret / tekil)</h4>' + (rows || '<span style="font-size:13px;opacity:.6">Henüz veri yok</span>')
     + '<h4 style="margin:16px 0 6px;font-size:14px">Nereden geldiler (30 gün)</h4>' + refs);
-  document.getElementById("stClose").onclick = () => { box.hidden = true; };
+  document.getElementById("stClose").onclick = () => { box.style.display = "none"; };
 });
 document.getElementById("myMods").addEventListener("click", () => { profileMenu.hidden = true; pickGame("Tümü"); ownerFilter = currentUid; ownerName = "Modlarım"; filterMods(); goTo("#mods"); });
 modGrid.addEventListener("click", (e) => {
