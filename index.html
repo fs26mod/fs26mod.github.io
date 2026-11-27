@@ -1374,6 +1374,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
 .cv-opts span small{display:block;color:#9aa294;font-size:12px}
 #cvGo{display:block;width:100%;margin-top:12px;padding:13px;border:0;border-radius:8px;background:#7d9000;color:#fff;font-weight:700;font-size:15px;cursor:pointer}
 #cvGo:disabled{opacity:.5;cursor:default}
+#cvModes{display:flex;flex-direction:column;gap:8px;margin:10px 0 14px}#cvModes button{display:block;width:100%;padding:12px;border-radius:8px;border:2px solid #526052;background:#0c100d;color:#d7dfd0;font-weight:700;font-size:15px;cursor:pointer;text-align:left}#cvModes button.on{border-color:#7d9000;background:#7d9000;color:#fff}
 #cvBar{height:8px;border-radius:4px;background:#252b21;margin-top:14px;overflow:hidden;display:none}
 #cvBar i{display:block;height:100%;width:0;background:#a6c400;transition:width .1s}
 #cvPct{display:none;margin-top:6px;font-size:13px;color:#d7dfd0;justify-content:space-between}
@@ -1402,16 +1403,17 @@ body.cv-busy{padding-top:52px}
 <div id="convModal" class="auth-modal" hidden>
   <div class="auth-box">
     <button id="closeConv" aria-label="Kapat">✕</button>
-    <h2>FS25 → FS26 Doku Dönüştürücü <small style="font-size:12px;opacity:.6">(tek buton sürümü)</small></h2>
-    <p class="cv-lead">.dds veya .png dokularını FS26'nın .ast biçimine çevirir. Tüm mod .zip dosyasını da yükleyebilirsin: içindeki .dds dosyaları .ast olur, diğer dosyalar aynen kalır. Her şey tarayıcında çalışır, dosyaların yüklenmez.</p>
+    <h2 id="cvTitle">DDS → AST Dönüştürücü</h2>
+    <div id="cvModes"><button type="button" data-mode="ast">🔄 DDS → AST Dönüştürücü</button><button type="button" data-mode="png">🖼 DDS → PNG Dönüştürücü</button></div>
+    <p class="cv-lead" id="cvLead">.dds veya .png dokularını FS26'nın .ast biçimine çevirir. Tüm mod .zip dosyasını da yükleyebilirsin: içindeki .dds dosyaları .ast olur, diğer dosyalar aynen kalır. Her şey tarayıcında çalışır, dosyaların yüklenmez.</p>
     <label id="cvDrop" for="cvFile"><b>Dosyaları seç veya buraya bırak</b><small>.zip, .dds, .png, .jpg, .webp</small></label>
     <input id="cvFile" type="file" multiple accept=".zip,.dds,.png,.jpg,.jpeg,.webp">
-    <div class="cv-opts">
+    <div class="cv-opts" id="cvOpts">
       <label><input type="checkbox" id="cvMips" checked><span>Mipmap oluştur<small>Doku dosyaları için önerilir. İkonlar her zaman mipsiz yazılır.</small></span></label>
       <label><input type="checkbox" id="cvSpec" checked><span>Specular haritalarını en fazla 512 px yap<small>Örnek FS26 paketinde böyle küçültülmüş.</small></span></label>
       <label><input type="checkbox" id="cvIcon" checked><span>Mağaza ikonlarını 512 px yap<small>iconFilename ve store ikonları.</small></span></label>
-      <label><input type="checkbox" id="cvPng"><span>.dds dosyalarını PNG'ye çevir (AST yerine)<small>Sadece tek tek seçilen .dds dosyaları için. .zip içindekiler yine .ast olur.</small></span></label>
     </div>
+    <div class="cv-opts" id="cvAutoWrap" style="margin-top:6px"><label><input type="checkbox" id="cvAuto"><span>İşlem bitince otomatik indir<small>Kapalıyken dosya hazır olunca aşağıda ⬇ indirme butonu çıkar, sen basınca iner.</small></span></label></div>
     <button id="cvGo" disabled>Dönüştür</button>
     <div id="cvBar"><i></i></div>
     <div id="cvPct"><b>%0</b><span></span></div>
@@ -1431,16 +1433,30 @@ body.cv-busy{padding-top:52px}
 
   const $ = id => document.getElementById(id);
   const modal = $('convModal'), fileIn = $('cvFile'), go = $('cvGo'), bar = $('cvBar'), log = $('cvLog'), out = $('cvOut'), drop = $('cvDrop');
-  let files = [], busy = false, t0 = 0, sb = 0, ss = 1;
+  let files = [], busy = false, t0 = 0, sb = 0, ss = 1, pngMode = false;
+  const LEAD_AST = $('cvLead').textContent;
+  function setMode(m) {
+    pngMode = m === 'png';
+    $('cvTitle').textContent = pngMode ? 'DDS → PNG Dönüştürücü' : 'DDS → AST Dönüştürücü';
+    $('cvLead').textContent = pngMode ? '.dds dokularını PNG resmine çevirir. Mod .zip dosyası da yükleyebilirsin: içindeki .dds dosyaları .png olur, diğer dosyalar aynen kalır, zip adı değişmez. Her şey tarayıcında çalışır, dosyaların yüklenmez.' : LEAD_AST;
+    $('cvOpts').style.display = pngMode ? 'none' : '';
+    fileIn.accept = pngMode ? '.zip,.dds' : '.zip,.dds,.png,.jpg,.jpeg,.webp';
+    $('cvModes').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
+    if (!files.length) drop.querySelector('small').textContent = pngMode ? '.zip, .dds' : '.zip, .dds, .png, .jpg, .webp';
+  }
+  $('cvModes').addEventListener('click', e => { const b = e.target.closest('button[data-mode]'); if (b && !busy) setMode(b.dataset.mode); });
+  setMode('ast');
 
   // menü bağlantısı
   const nav = document.getElementById('nav');
   if (nav) {
-    const a = document.createElement('a'); a.href = '#'; a.id = 'navConv';
-    a.innerHTML = '<i class="nico">🔄</i> Dönüştürücü';
     const contact = [...nav.querySelectorAll('a')].find(x => x.getAttribute('href') === '#contact');
-    nav.insertBefore(a, contact || null);
-    a.addEventListener('click', e => { e.preventDefault(); modal.hidden = false; const c = document.getElementById('nav'); if (c) c.classList.remove('open'); });
+    [['navConv', '🔄', 'DDS → AST Dönüştürücü', 'ast'], ['navConvPng', '🖼', 'DDS → PNG Dönüştürücü', 'png']].forEach(([id, ico, txt, mode]) => {
+      const a = document.createElement('a'); a.href = '#'; a.id = id;
+      a.innerHTML = '<i class="nico">' + ico + '</i> ' + txt;
+      nav.insertBefore(a, contact || null);
+      a.addEventListener('click', e => { e.preventDefault(); if (!busy) setMode(mode); modal.hidden = false; const c = document.getElementById('nav'); if (c) c.classList.remove('open'); });
+    });
   }
   $('closeConv').addEventListener('click', () => { modal.hidden = true; });
   modal.addEventListener('click', e => { if (e.target === modal) modal.hidden = true; });
@@ -1448,7 +1464,7 @@ body.cv-busy{padding-top:52px}
   function setFiles(list) {
     files = [...list];
     drop.querySelector('b').textContent = files.length ? files.length + ' dosya seçildi' : 'Dosyaları seç veya buraya bırak';
-    drop.querySelector('small').textContent = files.length ? files.map(f => f.name).slice(0, 3).join(', ') + (files.length > 3 ? '…' : '') : '.zip, .dds, .png, .jpg, .webp';
+    drop.querySelector('small').textContent = files.length ? files.map(f => f.name).slice(0, 3).join(', ') + (files.length > 3 ? '…' : '') : (pngMode ? '.zip, .dds' : '.zip, .dds, .png, .jpg, .webp');
     go.disabled = !files.length || busy;
   }
   fileIn.addEventListener('change', () => setFiles(fileIn.files));
@@ -1484,6 +1500,14 @@ body.cv-busy{padding-top:52px}
     const d = g.getImageData(0, 0, c.width, c.height).data;
     let alpha = false; for (let i = 3; i < d.length; i += 4) if (d[i] !== 255) { alpha = true; break; }
     return { rgba: d, width: c.width, height: c.height, hasAlpha: alpha };
+  }
+
+  // DDS -> PNG bayt dizisi
+  async function ddsToPng(buf) {
+    const d = FSConv.decodeDDS(buf), c = document.createElement('canvas'); c.width = d.width; c.height = d.height;
+    c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(d.rgba), d.width, d.height), 0, 0);
+    const blob = await new Promise((res, rej) => c.toBlob(x => x ? res(x) : rej(new Error('PNG oluşturulamadı')), 'image/png'));
+    return { bytes: new Uint8Array(await blob.arrayBuffer()), width: d.width, height: d.height, srcW: d.width, srcH: d.height, mips: 0 };
   }
 
   // Tek doku -> {bytes,width,height,...}
@@ -1551,7 +1575,7 @@ body.cv-busy{padding-top:52px}
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.rel = 'noopener';
     a.addEventListener('click', ev => { if (a.dataset.plain || blob.size <= BIG) return; ev.preventDefault(); if (a.dataset.busy) { try { showToast('İndirme zaten başladı, Chrome > İndirilenler\'den takip et'); } catch (_) {} return; } a.dataset.busy = '1'; setTimeout(() => { delete a.dataset.busy; }, 60000); try { showToast('İndirme başlatılıyor…'); } catch (_) {} saveBlob(name, blob, a); });
     if (thumb) a.appendChild(thumb);
-    a.appendChild(document.createTextNode('⬇ ' + name + ' (' + kb(blob.size) + ')')); out.appendChild(a); if (auto && blob.size <= BIG) setTimeout(() => { try { a.click(); } catch (_) {} }, 400);
+    a.appendChild(document.createTextNode('⬇ ' + name + ' (' + kb(blob.size) + ')')); out.appendChild(a); if (auto && $('cvAuto') && $('cvAuto').checked && blob.size <= BIG) setTimeout(() => { try { a.click(); } catch (_) {} }, 400);
   }
   function thumbOf(bytes) {
     try {
@@ -1564,13 +1588,14 @@ body.cv-busy{padding-top:52px}
   }
 
   async function run() {
-    busy = true; let wl = null; try { if (navigator.wakeLock) wl = await navigator.wakeLock.request('screen'); } catch (_) {} go.disabled = true; log.innerHTML = ''; out.innerHTML = ''; results = []; bar.style.display = 'block'; pctEl.style.display = 'flex'; t0 = Date.now();  topBar.classList.remove('done'); topBar.classList.add('on'); document.body.classList.add('cv-busy'); window.addEventListener('beforeunload', warnLeave); modal.hidden = true; getSW(); t0 = Date.now(); setBar(0);
+    busy = true; let wl = null; try { if (navigator.wakeLock) wl = await navigator.wakeLock.request('screen'); } catch (_) {} go.disabled = true; log.innerHTML = ''; out.innerHTML = ''; results = []; bar.style.display = 'block'; pctEl.style.display = 'flex'; t0 = Date.now();  topBar.classList.remove('done'); topBar.classList.add('on'); document.body.classList.add('cv-busy'); window.addEventListener('beforeunload', warnLeave); getSW(); t0 = Date.now(); setBar(0);
     try {
       for (let fi = 0; fi < files.length; fi++) {
         const f = files[fi]; sb = fi / files.length; ss = 1 / files.length;
         const n = f.name, lower = n.toLowerCase();
-        if (lower.endsWith('.zip')) await runZip(f);
-        else if (lower.endsWith('.dds') && $('cvPng') && $('cvPng').checked) {
+        if (pngMode && !/\.(dds|zip)$/.test(lower)) addLog(n, 'warn', 'PNG modunda sadece .dds ve .zip işlenir, atlandı');
+        else if (lower.endsWith('.zip')) await runZip(f);
+        else if (lower.endsWith('.dds') && pngMode) {
           const li = addLog(n, '', "PNG'ye çevriliyor…");
           try {
             const buf = new Uint8Array(await f.arrayBuffer());
@@ -1778,10 +1803,10 @@ body.cv-busy{padding-top:52px}
       const w = Math.max(e.size, 1), li = addLog(e.name, '', 'işleniyor…');
       try {
         const buf = await readEntry(file, e), kind = kindOf(e.name, icons);
-        const r = await convertTexture(e.name, buf, kind, p => setBar(0.1 + 0.87 * (doneW + p * w) / totalW));
+        const r = pngMode ? await ddsToPng(buf) : await convertTexture(e.name, buf, kind, p => setBar(0.1 + 0.87 * (doneW + p * w) / totalW));
         converted.add(e);
-        added.push({ name: e.name.replace(/\.dds$/i, '.ast'), blob: new Blob([r.bytes]), size: r.bytes.length, crc: crc32(r.bytes) });   // bayt dizisi hemen bırakılır, bellek şişmez
-        li.lastChild.textContent = `${r.srcW}×${r.srcH} → ${r.width}×${r.height}, ${r.mips} mip, ${kb(r.bytes.length)}`;
+        added.push({ name: e.name.replace(/\.dds$/i, pngMode ? '.png' : '.ast'), blob: new Blob([r.bytes]), size: r.bytes.length, crc: crc32(r.bytes) });   // bayt dizisi hemen bırakılır, bellek şişmez
+        li.lastChild.textContent = pngMode ? `${r.width}×${r.height}, ${kb(r.bytes.length)}` : `${r.srcW}×${r.srcH} → ${r.width}×${r.height}, ${r.mips} mip, ${kb(r.bytes.length)}`;
       } catch (err) {
         if (/^Desteklenmeyen DDS/i.test(err.message)) { skipped++; li.className = 'warn'; li.lastChild.textContent = 'desteklenmeyen biçim, .dds olduğu gibi bırakıldı'; }
         else { fail++; li.className = 'err'; li.lastChild.textContent = err.message + ' (.dds korundu)'; }
