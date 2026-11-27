@@ -1387,6 +1387,16 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
 #cvOut a{display:flex;align-items:center;gap:10px;padding:11px 13px;border-radius:8px;background:#7d9000;color:#fff;text-decoration:none;font-weight:700;font-size:14px;word-break:break-all}
 #cvOut canvas{max-width:72px;max-height:48px;border-radius:4px;background:#333;flex:none}
 .cv-note{font-size:12px;color:#9aa294;margin:12px 0 0;line-height:1.5}
+#cvTop{position:fixed;top:0;left:0;right:0;z-index:99999;box-sizing:border-box;padding:calc(env(safe-area-inset-top,0px) + 6px) 12px 8px;background:#10150d;border-bottom:1px solid #2e332b;box-shadow:0 2px 10px rgba(0,0,0,.45);color:#e3e9dd;font-size:13px;display:none;cursor:pointer}
+#cvTop.on{display:block}
+#cvTop .cvt-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:5px}
+#cvTop .cvt-row b{color:#a6c400;font-size:14px;white-space:nowrap}
+#cvTop .cvt-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#d7dfd0}
+#cvTop .cvt-bar{height:6px;border-radius:3px;background:#252b21;overflow:hidden}
+#cvTop .cvt-bar i{display:block;height:100%;width:0;background:#a6c400;transition:width .1s}
+#cvTop.done{background:#2c3a00}
+#cvTop.done .cvt-bar i{background:#c8e600}
+body.cv-busy{padding-top:52px}
 `;
   const html = `
 <div id="convModal" class="auth-modal" hidden>
@@ -1412,6 +1422,11 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
 
   const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
   document.body.insertAdjacentHTML('beforeend', html);
+  document.body.insertAdjacentHTML('beforeend', '<div id="cvTop" role="status"><div class="cvt-row"><b>%0</b><span>Dönüştürülüyor…</span></div><div class="cvt-bar"><i></i></div></div>');
+  const topBar = document.getElementById('cvTop');
+  topBar.addEventListener('click', () => { modal.hidden = false; });
+  const topSet = (pc, txt) => { topBar.querySelector('b').textContent = '%' + pc; topBar.querySelector('span').textContent = txt; topBar.querySelector('i').style.width = pc + '%'; };
+  const warnLeave = e => { e.preventDefault(); e.returnValue = ''; };
 
   const $ = id => document.getElementById(id);
   const modal = $('convModal'), fileIn = $('cvFile'), go = $('cvGo'), bar = $('cvBar'), log = $('cvLog'), out = $('cvOut'), drop = $('cvDrop');
@@ -1455,6 +1470,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
     else if (p > 0.02) { const left = Math.ceil((Date.now() - t0) / 1000 * (1 - p) / p); txt = '%' + (100 - pc) + ' kaldı · yaklaşık ' + (left >= 60 ? Math.floor(left / 60) + ' dk ' + (left % 60) + ' sn' : left + ' sn'); }
     else txt = '%100 kaldı';
     pctEl.lastChild.textContent = txt;
+    if (busy) topSet(pc, 'Dönüştürülüyor · ' + txt + ' · detay için dokun');
   };
   const kb = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.round(n / 1024) + ' KB';
   const base = p => p.split('/').pop();
@@ -1528,12 +1544,13 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
   }
   async function saveBlob(name, blob, a) {
     if (blob.size > BIG) { try { if (await streamSave(name, blob)) return; } catch (_) {} }
+    try { showToast('Tarayıcı dosyayı hazırlıyor, büyük dosyada birkaç dakika sürebilir…'); } catch (_) {}
     a.dataset.plain = '1'; a.click(); delete a.dataset.plain;   // yedek: normal blob indirmesi
   }
-  function addDownload(name, blob, thumb) { results.push({ name, blob, thumb }); }
+  function addDownload(name, blob, thumb, crc) { results.push({ name, blob, thumb, crc }); }
   function showDownload(name, blob, thumb, auto) {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.rel = 'noopener';
-    a.addEventListener('click', ev => { if (a.dataset.plain || blob.size <= BIG) return; ev.preventDefault(); saveBlob(name, blob, a); });
+    a.addEventListener('click', ev => { if (a.dataset.plain || blob.size <= BIG) return; ev.preventDefault(); try { showToast('İndirme başlatılıyor…'); } catch (_) {} saveBlob(name, blob, a); });
     if (thumb) a.appendChild(thumb);
     a.appendChild(document.createTextNode('⬇ ' + name + ' (' + kb(blob.size) + ')')); out.appendChild(a); if (auto) setTimeout(() => { try { if (blob.size > BIG) saveBlob(name, blob, a); else a.click(); } catch (_) {} }, 400);
   }
@@ -1548,7 +1565,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
   }
 
   async function run() {
-    busy = true; let wl = null; try { if (navigator.wakeLock) wl = await navigator.wakeLock.request('screen'); } catch (_) {} go.disabled = true; log.innerHTML = ''; out.innerHTML = ''; results = []; bar.style.display = 'block'; pctEl.style.display = 'flex'; t0 = Date.now(); setBar(0);
+    busy = true; let wl = null; try { if (navigator.wakeLock) wl = await navigator.wakeLock.request('screen'); } catch (_) {} go.disabled = true; log.innerHTML = ''; out.innerHTML = ''; results = []; bar.style.display = 'block'; pctEl.style.display = 'flex'; t0 = Date.now();  topBar.classList.remove('done'); topBar.classList.add('on'); document.body.classList.add('cv-busy'); window.addEventListener('beforeunload', warnLeave); modal.hidden = true; getSW(); t0 = Date.now(); setBar(0);
     try {
       for (let fi = 0; fi < files.length; fi++) {
         const f = files[fi]; sb = fi / files.length; ss = 1 / files.length;
@@ -1562,7 +1579,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
             const r = await convertTexture(n, buf, kind, setBar);
             const astName = n.replace(/\.[^.]+$/, '') + '.ast';
             li.lastChild.textContent = `${r.width}×${r.height}, ${r.mips} mip, ${kb(r.bytes.length)}`;
-            addDownload(astName, new Blob([r.bytes], { type: 'application/octet-stream' }), thumbOf(r.bytes));
+            addDownload(astName, new Blob([r.bytes], { type: 'application/octet-stream' }), thumbOf(r.bytes), results.length || files.length > 1 ? crc32(r.bytes) : null);
           } catch (e) {
             if (/^Desteklenmeyen DDS/i.test(e.message)) { li.className = 'warn'; li.lastChild.textContent = 'desteklenmeyen biçim, dönüştürülmedi'; }
             else { li.className = 'err'; li.lastChild.textContent = e.message; }
@@ -1577,27 +1594,88 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
       } else if (results.length === 1) showDownload(results[0].name, results[0].blob, results[0].thumb, true);
       setBar(1);
     } catch (e) { addLog('Hata', 'err', (e && e.message) || String(e)); }
-    finally { try { if (wl) wl.release(); } catch (_) {} sb = 0; ss = 1; busy = false; go.disabled = !files.length; }
+    finally {
+      try { if (wl) wl.release(); } catch (_) {} sb = 0; ss = 1; busy = false; go.disabled = !files.length;
+      window.removeEventListener('beforeunload', warnLeave);
+      const hasErr = !!log.querySelector('li.err');
+      topBar.classList.add('done'); topSet(100, hasErr ? 'Bitti, hata var · dokunup bak' : '✅ Tamamlandı · indirmek için dokun');
+      setTimeout(() => { if (!busy) { topBar.classList.remove('on', 'done'); document.body.classList.remove('cv-busy'); } }, hasErr ? 20000 : 12000);
+    }
   }
 
 
   /* ---------- birden fazla çıktıyı tek zip'te topla (sıkıştırmasız, dosyalar aynen içine konur) ---------- */
+  function crcWorkerBody() {
+    const t = new Uint32Array(1024);
+    for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
+    for (let n = 0; n < 256; n++) { let c = t[n]; for (let k = 1; k < 4; k++) { c = t[c & 255] ^ (c >>> 8); t[k * 256 + n] = c >>> 0; } }
+    function upd(c, b) { const n = b.length, n4 = n - (n & 3); let i = 0; for (; i < n4; i += 4) { c ^= b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 24); c = t[768 + (c & 255)] ^ t[512 + ((c >>> 8) & 255)] ^ t[256 + ((c >>> 16) & 255)] ^ t[c >>> 24]; } for (; i < n; i++) c = t[(c ^ b[i]) & 255] ^ (c >>> 8); return c >>> 0; }
+    self.onmessage = async e => {
+      try { const b = new Uint8Array(await e.data.blob.arrayBuffer()); self.postMessage({ crc: (upd(0xFFFFFFFF, b) ^ 0xFFFFFFFF) >>> 0, len: b.length }); }
+      catch (x) { self.postMessage({ err: String(x) }); }
+    };
+  }
+  function gf2Times(mat, vec) { let sum = 0, i = 0; while (vec) { if (vec & 1) sum ^= mat[i]; vec >>>= 1; i++; } return sum >>> 0; }
+  function gf2Square(sq, mat) { for (let n = 0; n < 32; n++) sq[n] = gf2Times(mat, mat[n]); }
+  function crc32Combine(crc1, crc2, len2) {          // zlib crc32_combine
+    if (len2 <= 0) return crc1;
+    const even = new Uint32Array(32), odd = new Uint32Array(32);
+    odd[0] = 0xEDB88320; let row = 1; for (let n = 1; n < 32; n++) { odd[n] = row; row <<= 1; }
+    gf2Square(even, odd); gf2Square(odd, even);
+    do {
+      gf2Square(even, odd); if (len2 & 1) crc1 = gf2Times(even, crc1); len2 = Math.floor(len2 / 2); if (!len2) break;
+      gf2Square(odd, even); if (len2 & 1) crc1 = gf2Times(odd, crc1); len2 = Math.floor(len2 / 2);
+    } while (len2);
+    return (crc1 ^ crc2) >>> 0;
+  }
+  // Büyük çıktıların CRC'sini tüm işlemci çekirdeklerinde paralel hesapla (16 MB'lık parçalar, sonra birleştir)
+  async function crcAll(list, onP) {
+    const CH = 16 * 1048576, tasks = [], parts = list.map(r => new Array(Math.max(1, Math.ceil(r.blob.size / CH))));
+    list.forEach((r, ri) => { for (let k = 0; k < parts[ri].length; k++) tasks.push({ ri, k, blob: r.blob.slice(k * CH, Math.min(r.blob.size, (k + 1) * CH)) }); });
+    const total = Math.max(1, list.reduce((s, r) => s + r.blob.size, 0)); let done = 0, next = 0, pool = [], url = null, ok = true;
+    try {
+      url = URL.createObjectURL(new Blob(['(' + crcWorkerBody.toString() + ')()'], { type: 'text/javascript' }));
+      const nw = Math.max(2, Math.min(6, (navigator.hardwareConcurrency || 4) - 1));
+      for (let i = 0; i < nw; i++) pool.push(new Worker(url));
+      await Promise.all(pool.map(w => new Promise((res, rej) => {
+        const step = () => {
+          if (next >= tasks.length) return res();
+          const t = tasks[next++];
+          w.onmessage = e => { if (e.data.err) return rej(new Error(e.data.err)); parts[t.ri][t.k] = { crc: e.data.crc, len: e.data.len }; done += e.data.len; onP && onP(done / total); step(); };
+          w.onerror = () => rej(new Error('crc worker'));
+          w.postMessage({ blob: t.blob });
+        };
+        step();
+      })));
+    } catch (_) { ok = false; }
+    pool.forEach(w => w.terminate()); if (url) URL.revokeObjectURL(url);
+    if (!ok) {                                      // yedek: ana iş parçacığında
+      done = 0;
+      for (let ri = 0; ri < list.length; ri++) for (let k = 0; k < parts[ri].length; k++) {
+        const b = new Uint8Array(await tasks.find(t => t.ri === ri && t.k === k).blob.arrayBuffer());
+        parts[ri][k] = { crc: crc32(b), len: b.length }; done += b.length; onP && onP(done / total); await tick();
+      }
+    }
+    list.forEach((r, ri) => { let acc = parts[ri][0].crc; for (let k = 1; k < parts[ri].length; k++) acc = crc32Combine(acc, parts[ri][k].crc, parts[ri][k].len); r.crc = acc >>> 0; });
+  }
+
   async function addBundle() {
     const stat = addLog('Hepsi tek zip\'e toplanıyor…', '', '');
     await tick();
+    const need = results.filter(r => r.crc == null);
+    if (need.length) await crcAll(need, p => { const pc = Math.round(p * 100); stat.lastChild.textContent = 'sağlama %' + pc; topSet(pc, 'Zip\'ler toplanıyor · sağlama %' + pc); });
     const enc = new TextEncoder(), parts = [], cd = [], used = new Set();
     let pos = 0;
     for (const r of results) {
       let nm = r.name, k = 2;
       while (used.has(nm.toLowerCase())) nm = r.name.replace(/(\.[^.]*)?$/, ' (' + (k++) + ')$1');
       used.add(nm.toLowerCase());
-      let crc = 0xFFFFFFFF;
-      for (let o = 0; o < r.blob.size; o += 8388608) {
-        const chunk = new Uint8Array(await r.blob.slice(o, o + 8388608).arrayBuffer());
-        for (let i = 0; i < chunk.length; i++) crc = crcTab[(crc ^ chunk[i]) & 255] ^ (crc >>> 8);
-        await tick();
+      let crc = r.crc;
+      if (crc == null) {
+        crc = 0xFFFFFFFF;
+        for (let o = 0; o < r.blob.size; o += 8388608) { crc = crcUpdate(crc, new Uint8Array(await r.blob.slice(o, o + 8388608).arrayBuffer())); await tick(); }
+        crc = (crc ^ 0xFFFFFFFF) >>> 0;
       }
-      crc = (crc ^ 0xFFFFFFFF) >>> 0;
       const nb = enc.encode(nm), sz = r.blob.size;
       const h = new Uint8Array(30), v = new DataView(h.buffer);
       v.setUint32(0, 0x04034b50, true); v.setUint16(4, 20, true); v.setUint16(6, 0x0800, true); v.setUint16(8, 0, true);
@@ -1621,7 +1699,9 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
 
   /* ---------- bellek dostu ZIP okuma/yazma ---------- */
   const crcTab = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
-  function crc32(b) { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = crcTab[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+  const crcT4 = (() => { const t = new Uint32Array(1024); t.set(crcTab); for (let n = 0; n < 256; n++) { let c = crcTab[n]; for (let k = 1; k < 4; k++) { c = crcTab[c & 255] ^ (c >>> 8); t[k * 256 + n] = c >>> 0; } } return t; })();
+  function crcUpdate(c, b) { const t = crcT4, n = b.length, n4 = n - (n & 3); let i = 0; for (; i < n4; i += 4) { c ^= b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 24); c = t[768 + (c & 255)] ^ t[512 + ((c >>> 8) & 255)] ^ t[256 + ((c >>> 16) & 255)] ^ t[c >>> 24]; } for (; i < n; i++) c = t[(c ^ b[i]) & 255] ^ (c >>> 8); return c >>> 0; }
+  function crc32(b) { return (crcUpdate(0xFFFFFFFF, b) ^ 0xFFFFFFFF) >>> 0; }
 
   async function readZipIndex(file) {
     const size = file.size;
@@ -1697,14 +1777,19 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api; else 
     const push = (x, len) => { parts.push(x); pos += len; acc += len; if (acc > 64e6) { const merged = new Blob(parts.splice(0)); parts.push(merged); acc = 0; } };
     const [dt, dd] = dosNow();
     const steps = entries.length + added.length; let stepN = 0;
-    for (const e of entries) {
-      if (++stepN % 50 === 0) { setBar(0.97 + 0.03 * stepN / steps); await tick(); }
-      if (converted.has(e)) continue;
-      const rec = e.rec.slice(); new DataView(rec.buffer).setUint32(42, pos, true);
-      cdRecs.push(rec);
-      // Dokunulmayan dosyalar belleğe alınmaz; orijinal zip'ten dilim olarak eklenir (400 MB'lık modlarda bellek şişmesin)
-      push(file.slice(e.off, e.end), e.end - e.off);
+    // Dokunulmayan ardışık dosyalar TEK büyük dilim olarak eklenir (on binlerce küçük Blob parçası yerine birkaç büyük parça)
+    const ordered = [...entries].sort((x, y) => x.off - y.off);
+    let runStart = -1, runEnd = -1, runBase = 0;
+    const flushRun = () => { if (runStart < 0) return; push(file.slice(runStart, runEnd), runEnd - runStart); runStart = -1; };
+    for (const e of ordered) {
+      if (++stepN % 500 === 0) { setBar(0.97 + 0.03 * stepN / steps); await tick(); }
+      if (converted.has(e)) { flushRun(); continue; }
+      if (runStart >= 0 && e.off !== runEnd) flushRun();
+      if (runStart < 0) { runStart = e.off; runBase = pos; }
+      const rec = e.rec.slice(); new DataView(rec.buffer).setUint32(42, runBase + (e.off - runStart), true);
+      cdRecs.push(rec); runEnd = e.end;
     }
+    flushRun();
     for (const a of added) {
       setBar(0.97 + 0.03 * (++stepN) / steps); await tick();
       const nb = enc.encode(a.name), h = new Uint8Array(30), v = new DataView(h.buffer), crc = a.crc;
