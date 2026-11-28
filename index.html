@@ -454,11 +454,12 @@ body.has-slider .search-wrap{margin-top:16px!important}
     <form id="uploadForm">
       <input id="upTitle" type="text" placeholder="Mod adı" required>
       <textarea id="upDesc" rows="3" placeholder="Açıklama"></textarea>
+      <p id="descAuto" class="up-note" style="display:none"></p>
       <select id="upGame" style="display:none"><option value="" selected>Oyun sürümünü seç...</option><option>FS26</option><option>FS23</option><option>FS20</option></select>
       <p id="gameAuto" class="up-note"></p>
       <select id="upPlatform" style="display:none"><option>Android</option></select>
       <select id="upCategory" style="display:none"></select>
-      <label class="up-label" for="upImage">Mod fotoğrafları (en az 4, en fazla 10)</label>
+      <label class="up-label" for="upImage">Mod fotoğrafları (en az 1, en fazla 10)</label>
       <input id="upImage" type="file" accept="image/*" multiple>
       <div class="up-label">Mod nasıl eklenecek?</div>
       <select id="upMode"><option value="file">Dosya yükle (50 MB'a kadar)</option><option value="link">Link yapıştır (büyük modlar)</option></select>
@@ -2711,14 +2712,16 @@ function matchCat(s) {
   for (const [re, sub] of CAT_RULES) if (re.test(s)) return sub;
   return null;
 }
-let detectedGame = null, detectedGuess = null, detectedBrand = null, detectedTitle = "", detectedDesc = "", upBlocked = false;
+let detectedGame = null, detectedGuess = null, detectedBrand = null, detectedTitle = "", detectedDesc = "", detectedDescLang = "", upBlocked = false;
 /* modDesc.xml içindeki <title>/<description> bloğundan metin al: önce tr, sonra en, sonra ilk dil */
+let descTextLang = "";
 function descText(doc, tag) {
   const root = doc.querySelector("modDesc > " + tag) || doc.querySelector(tag);
   if (!root) return "";
   const kids = [...root.children];
-  if (!kids.length) return (root.textContent || "").trim();
+  if (!kids.length) { descTextLang = ""; return (root.textContent || "").trim(); }
   const pick = kids.find(k => k.tagName.toLowerCase() === "tr") || kids.find(k => k.tagName.toLowerCase() === "en") || kids[0];
+  descTextLang = pick.tagName.toLowerCase();
   return (pick.textContent || "").trim();
 }
 const GAME_MAP = { FS19: "FS20", FS22: "FS23", FS25: "FS26" };
@@ -2737,7 +2740,7 @@ function guessFromDesc(raw) {
   return "FS25";
 }
 async function detectCategory(file) {
-  detectedGame = null; detectedGuess = null; detectedBrand = null; detectedTitle = ""; detectedDesc = "";
+  detectedGame = null; detectedGuess = null; detectedBrand = null; detectedTitle = ""; detectedDesc = ""; detectedDescLang = "";
   if (window.JSZip && file.size < 400 * 1024 * 1024) {
     try {
       const zip = await JSZip.loadAsync(file);
@@ -2750,6 +2753,7 @@ async function detectCategory(file) {
         const doc = parse(raw);
         detectedTitle = descText(doc, "title").slice(0, 120);
         detectedDesc = descText(doc, "description").replace(/\r/g, "").replace(/\n{3,}/g, "\n\n").trim().slice(0, 2000);
+        detectedDescLang = descTextLang;
         if (doc.querySelector("maps map")) return "Diğer Haritalar";
         const items = [...doc.querySelectorAll("storeItems storeItem")].slice(0, 12);
         const tally = {};
@@ -2771,6 +2775,32 @@ async function detectCategory(file) {
   }
   return matchCat(file.name.replace(/\.zip$/i, ""));
 }
+/* İngilizce (veya başka dilde) açıklamayı Türkçeye çevir: ücretsiz MyMemory servisi, parça parça */
+function looksTurkish(t) { return /[çğıöşüÇĞİÖŞÜ]/.test(t) && /\b(ve|bir|için|ile|bu|olarak|daha)\b/i.test(t); }
+async function translateToTr(text, from) {
+  const src = /^[a-z]{2}$/.test(from || "") && from !== "tr" ? from : "en";
+  const chunks = [];
+  for (const para of text.split(/\n/)) {
+    if (!para.trim()) { chunks.push(""); continue; }
+    let cur = "";
+    for (const sent of para.split(/(?<=[.!?:;])\s+/)) {
+      if ((cur + " " + sent).length > 400 && cur) { chunks.push(cur); cur = sent; }
+      else cur = cur ? cur + " " + sent : sent;
+    }
+    if (cur) chunks.push(cur);
+  }
+  const out = [];
+  for (const c of chunks) {
+    if (!c.trim()) { out.push(""); continue; }
+    const r = await fetch("https://api.mymemory.translated.net/get?q=" + encodeURIComponent(c.slice(0, 480)) + "&langpair=" + src + "|tr");
+    if (!r.ok) throw new Error("http " + r.status);
+    const j = await r.json();
+    const t = j && j.responseData && j.responseData.translatedText;
+    if (!t || j.responseStatus && Number(j.responseStatus) !== 200) throw new Error("translate failed");
+    out.push(t);
+  }
+  return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
 document.getElementById("upFile").addEventListener("change", async (e) => {
   const f = e.target.files[0];
   const note = document.getElementById("catAuto");
@@ -2782,6 +2812,20 @@ document.getElementById("upFile").addEventListener("change", async (e) => {
   const tEl = document.getElementById("upTitle"), dEl = document.getElementById("upDesc");
   if (detectedTitle && (!tEl.value.trim() || tEl.dataset.auto === "1")) { tEl.value = detectedTitle; tEl.dataset.auto = "1"; }
   if (detectedDesc && (!dEl.value.trim() || dEl.dataset.auto === "1")) { dEl.value = detectedDesc; dEl.dataset.auto = "1"; }
+  const dNote = document.getElementById("descAuto");
+  dNote.style.display = "none";
+  if (detectedDesc && dEl.dataset.auto === "1" && detectedDescLang !== "tr" && !looksTurkish(detectedDesc)) {
+    dNote.textContent = "Açıklama Türkçeye çevriliyor...";
+    dNote.style.display = "";
+    const mine = detectedDesc, lang = detectedDescLang;
+    (async () => { try {
+      const tr = await translateToTr(mine, lang);
+      if (dEl.dataset.auto === "1" && dEl.value === mine) { dEl.value = tr; dNote.textContent = "Açıklama otomatik Türkçeye çevrildi (istersen düzenleyebilirsin)."; }
+      else dNote.style.display = "none";
+    } catch (_) {
+      dNote.textContent = "Açıklama çevrilemedi, orijinal metin bırakıldı.";
+    } })();
+  }
   const fm = f.name.match(/(?:^|[^a-z0-9])FS[\s_\-]?(\d\d)(?!\d)/i);
   let game = detectedGame || (fm ? "FS" + fm[1] : null);
   let guessed = false;
@@ -2869,7 +2913,7 @@ uploadForm.addEventListener("submit", async (event) => {
   if (upBlocked) { upMsg.textContent = "Bu mod desteklenmeyen bir oyun sürümü için görünüyor."; return; }
   if (!document.getElementById("upGame").value) { upMsg.textContent = "Önce oyun sürümünü seç (FS26, FS23 veya FS20)."; return; }
   const imgFiles = [...document.getElementById("upImage").files];
-  if (imgFiles.length < 4) { upMsg.textContent = "En az 4 fotoğraf seçmelisin (şu an " + imgFiles.length + ")."; return; }
+  if (imgFiles.length < 1) { upMsg.textContent = "En az 1 fotoğraf seçmelisin."; return; }
   if (imgFiles.length > 10) { upMsg.textContent = "En fazla 10 fotoğraf seçebilirsin."; return; }
   if (!isAdmin && currentUid) {
     const since = new Date(Date.now() - 864e5).toISOString();
