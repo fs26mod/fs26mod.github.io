@@ -2711,7 +2711,16 @@ function matchCat(s) {
   for (const [re, sub] of CAT_RULES) if (re.test(s)) return sub;
   return null;
 }
-let detectedGame = null, detectedGuess = null, detectedBrand = null, upBlocked = false;
+let detectedGame = null, detectedGuess = null, detectedBrand = null, detectedTitle = "", detectedDesc = "", upBlocked = false;
+/* modDesc.xml içindeki <title>/<description> bloğundan metin al: önce tr, sonra en, sonra ilk dil */
+function descText(doc, tag) {
+  const root = doc.querySelector("modDesc > " + tag) || doc.querySelector(tag);
+  if (!root) return "";
+  const kids = [...root.children];
+  if (!kids.length) return (root.textContent || "").trim();
+  const pick = kids.find(k => k.tagName.toLowerCase() === "tr") || kids.find(k => k.tagName.toLowerCase() === "en") || kids[0];
+  return (pick.textContent || "").trim();
+}
 const GAME_MAP = { FS19: "FS20", FS22: "FS23", FS25: "FS26" };
 function gameFromText(raw) {
   const m = raw.match(/\/fs(\d\d)\/modDesc\.xsd/i);
@@ -2728,7 +2737,7 @@ function guessFromDesc(raw) {
   return "FS25";
 }
 async function detectCategory(file) {
-  detectedGame = null; detectedGuess = null; detectedBrand = null;
+  detectedGame = null; detectedGuess = null; detectedBrand = null; detectedTitle = ""; detectedDesc = "";
   if (window.JSZip && file.size < 400 * 1024 * 1024) {
     try {
       const zip = await JSZip.loadAsync(file);
@@ -2739,6 +2748,8 @@ async function detectCategory(file) {
         detectedGame = gameFromText(raw);
         detectedGuess = guessFromDesc(raw);
         const doc = parse(raw);
+        detectedTitle = descText(doc, "title").slice(0, 120);
+        detectedDesc = descText(doc, "description").replace(/\r/g, "").replace(/\n{3,}/g, "\n\n").trim().slice(0, 2000);
         if (doc.querySelector("maps map")) return "Diğer Haritalar";
         const items = [...doc.querySelectorAll("storeItems storeItem")].slice(0, 12);
         const tally = {};
@@ -2767,6 +2778,10 @@ document.getElementById("upFile").addEventListener("change", async (e) => {
   note.textContent = "Kategori belirleniyor...";
   const sub = await detectCategory(f);
   document.getElementById("upCategory").value = sub || "Diğer Modlar";
+  /* modDesc'ten gelen ad ve açıklamayı, kullanıcı kendisi yazmadıysa doldur */
+  const tEl = document.getElementById("upTitle"), dEl = document.getElementById("upDesc");
+  if (detectedTitle && (!tEl.value.trim() || tEl.dataset.auto === "1")) { tEl.value = detectedTitle; tEl.dataset.auto = "1"; }
+  if (detectedDesc && (!dEl.value.trim() || dEl.dataset.auto === "1")) { dEl.value = detectedDesc; dEl.dataset.auto = "1"; }
   const fm = f.name.match(/(?:^|[^a-z0-9])FS[\s_\-]?(\d\d)(?!\d)/i);
   let game = detectedGame || (fm ? "FS" + fm[1] : null);
   let guessed = false;
@@ -2794,6 +2809,8 @@ document.getElementById("upFile").addEventListener("change", async (e) => {
     : "Kategori belirlenemedi, \"Diğer Modlar\" seçildi (istersen değiştirebilirsin)";
 });
 document.getElementById("upGame").addEventListener("change", () => { upBlocked = false; });
+/* kullanıcı elle değiştirirse otomatik doldurma artık üstüne yazmaz */
+["upTitle", "upDesc"].forEach(id => document.getElementById(id).addEventListener("input", e => { e.target.dataset.auto = "0"; }));
 const upModeEl = document.getElementById("upMode"), upFileEl = document.getElementById("upFile"), upLinkEl = document.getElementById("upLink");
 upModeEl.addEventListener("change", () => {
   const link = upModeEl.value === "link";
