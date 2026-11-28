@@ -358,6 +358,15 @@ body.has-slider .search-wrap{margin-top:16px!important}
 .auth-modal:not([hidden])>.auth-box,.auth-modal:not([hidden])>.gallery-box{animation:modalIn .55s cubic-bezier(.16,.84,.28,1) backwards}
 .mod-card{animation:cardIn .6s ease backwards;transition:transform .3s ease,border-color .3s ease}
 @media (prefers-reduced-motion:reduce){.auth-modal:not([hidden]),.auth-modal:not([hidden])>.auth-box,.auth-modal:not([hidden])>.gallery-box,.mod-card{animation:none}}
+
+/* FS MOD reklam alanı: AdSense hesabı onaylandıktan sonra gerçek reklam kodu buraya eklenir. */
+.fs-ad-wrap{width:min(100%,970px);margin:18px auto 24px;padding:0 10px}
+.fs-ad-label{font-size:10px;letter-spacing:1.5px;color:#8e988b;text-align:center;margin:0 0 6px}
+.fs-ad-slot{min-height:100px;display:flex;align-items:center;justify-content:center;text-align:center;
+  padding:18px;border:1px dashed #46513f;border-radius:9px;background:#171b15;color:#aab5ac;font-size:13px}
+.fs-ad-slot strong{display:block;color:#c4d18d;margin-bottom:5px}
+@media(min-width:700px){.fs-ad-slot{min-height:120px}}
+
 </style>
 <style>
 #sortSel{background:#151c17;color:#e7eee7;border:1px solid #344037;border-radius:8px;padding:9px 10px;margin:0 0 14px;font-size:14px}
@@ -538,6 +547,8 @@ body.has-slider .search-wrap{margin-top:16px!important}
 </main>
 <footer><a class="brand footer-brand" href="#"><span>🚜</span><span><b>FS26 <i>MOD</i></b><small>Topluluk için, oyuncularla.</small></span></a><p>Bu, topluluk amaçlı bağımsız bir mod sitesidir; GIANTS Software ile bağlantılı değildir.</p><span class="footer-links"><a href="#" data-legal="privacy">Gizlilik</a><a href="#" data-legal="terms">Şartlar</a><a href="#" data-legal="about">Hakkında</a><a href="#" data-legal="guide">Kurulum Rehberi</a><a href="#" id="reqLink">Mod İste</a><a href="#" id="pwaLink" hidden>Ana ekrana ekle</a></span><small>© 2026 FS26 MOD · Tüm hakları saklıdır. Bu site <b>@fssikayet.iletisim</b> tarafından kurulmuş ve yönetilmektedir.</small> · <a class="footer-ig" href="https://www.instagram.com/fssikayet.iletisim" target="_blank" rel="noopener">Instagram: @fssikayet.iletisim</a></footer>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<!-- AdSense: hesap onayı sonrası Google'ın verdiği resmi script ve reklam birimi kodunu ekle.
+     Yayıncı kimliği ve reklam slotu bu dosyada henüz tanımlı değildir. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
@@ -2416,9 +2427,27 @@ document.getElementById("myStats").addEventListener("click", async () => {
 document.getElementById("myMods").addEventListener("click", () => { profileMenu.hidden = true; pickGame("Tümü"); ownerFilter = currentUid; ownerName = "Modlarım"; filterMods(); goTo("#mods"); });
 modGrid.addEventListener("click", (e) => {
   const a = e.target.closest("[data-dl]");
-  if (!a || !supabaseClient) return;
-  try { if (sessionStorage.getItem("dl" + a.dataset.dl)) return; sessionStorage.setItem("dl" + a.dataset.dl, "1"); } catch (_) {}
-  supabaseClient.rpc("inc_download", { mod_id: String(a.dataset.dl) }).then(() => {});
+  if (!a) return;
+  e.preventDefault();
+
+  const modId = String(a.dataset.dl || "");
+  const fileUrl = a.getAttribute("href") || "";
+  const modCard = a.closest(".mod-card, article");
+  const modName = modCard ? (modCard.querySelector("h3")?.textContent || "FS MOD") : "FS MOD";
+
+  if (supabaseClient) {
+    try {
+      if (!sessionStorage.getItem("dl" + modId)) {
+        sessionStorage.setItem("dl" + modId, "1");
+        supabaseClient.rpc("inc_download", { mod_id: modId }).then(() => {});
+      }
+    } catch (_) {
+      supabaseClient.rpc("inc_download", { mod_id: modId }).then(() => {});
+    }
+  }
+
+  const params = new URLSearchParams({ file: fileUrl, name: modName });
+  window.location.href = "download.html?" + params.toString();
 });
 function modStyle(cat) {
   const main = catInfo(cat).main;
