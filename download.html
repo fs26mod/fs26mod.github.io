@@ -11,7 +11,7 @@ main{width:min(100%,680px);background:var(--panel);border:1px solid var(--line);
 .brand{color:var(--green);font-weight:900;letter-spacing:1px;font-size:13px}
 h1{font-size:clamp(23px,5vw,32px);line-height:1.2;margin:12px 0}
 p{color:var(--muted)}.ad-label{text-align:center;font-size:11px;letter-spacing:1.5px;color:#8e988b;margin:22px 0 6px}
-.ad-slot{min-height:110px;border:1px dashed #46513f;border-radius:10px;background:#111611;display:flex;align-items:center;justify-content:center;text-align:center;padding:18px;color:var(--muted);font-size:13px}
+.ad-slot{min-height:180px;border:1px solid #46513f;border-radius:10px;background:#111611;display:flex;align-items:center;justify-content:center;text-align:center;padding:18px;color:var(--muted);font-size:13px;overflow:hidden}.ad-slot img{max-width:100%;max-height:260px;object-fit:contain;border-radius:8px}.ad-slot a{display:block;color:inherit;text-decoration:none}.timer{font-size:13px;color:#c4d18d;text-align:center;margin:12px 0 0}.btn[aria-disabled="true"]{opacity:.45;pointer-events:none;filter:grayscale(.4)}
 .ad-slot strong{display:block;color:#c4d18d;margin-bottom:5px}
 .actions{display:grid;gap:12px;margin-top:22px}
 a.btn{display:block;text-align:center;text-decoration:none;font-weight:850;border-radius:12px;padding:15px 18px}
@@ -26,18 +26,21 @@ a.btn{display:block;text-align:center;text-decoration:none;font-weight:850;borde
 <h1 id="modName">Mod indir</h1>
 <p>İndirme sayfası</p>
 
-<p class="ad-label">REKLAM</p>
+<p class="ad-label">SPONSOR REKLAMI</p>
 <div class="ad-slot" id="adSlot">
-  <div><strong>Reklam alanı</strong>
-    AdSense hesabın onaylandıktan sonra resmi reklam birimi kodunu bu alana ekle.
+  <div>
+    <strong>FS MOD sponsor alanı</strong>
+    Buraya sponsorunun reklam görselini ve tanıtımını yerleştir.
+    <small style="display:block;margin-top:8px">Sponsor reklamı — reklama tıklamak zorunlu değildir.</small>
   </div>
 </div>
+<p class="timer" id="adTimer" aria-live="polite">Reklam gösteriliyor: 5 saniye</p>
 
 <div class="actions">
-  <a class="btn primary" id="downloadBtn" href="#" rel="nofollow">Dosyayı indir</a>
+  <a class="btn primary" id="downloadBtn" href="#" rel="nofollow" aria-disabled="true">Reklamdan sonra indir</a>
   <a class="btn secondary" href="./index.html">FS MOD ana sayfasına dön</a>
 </div>
-<p class="note">Reklama tıklamak veya reklamı beklemek zorunlu değildir. İndirme düğmesi doğrudan mod dosyasına gider.</p>
+<p class="note">Sponsor reklamı 5 saniye gösterildikten sonra indirme bağlantısı açılır. Sponsor reklamına tıklamak zorunlu değildir.</p>
 <p id="error" class="error" hidden>İndirme bağlantısı geçersiz. Lütfen mod sayfasına dönüp tekrar deneyin.</p>
 </main>
 <script>
@@ -47,12 +50,54 @@ a.btn{display:block;text-align:center;text-decoration:none;font-weight:850;borde
   const name = params.get("name") || "FS MOD";
   const link = document.getElementById("downloadBtn");
   document.getElementById("modName").textContent = name + " — indir";
+
+  // Sponsor görselini burada ayarla (ör. https://siteadresin.com/reklam.jpg).
+  // Sponsor linki isteğe bağlıdır; reklama tıklamayı indirme şartı yapmayın.
+  const sponsorImageUrl = "";
+  const sponsorLinkUrl = "";
+  if (sponsorImageUrl) {
+    const slot = document.getElementById("adSlot");
+    slot.replaceChildren();
+    const img = document.createElement("img");
+    img.src = sponsorImageUrl;
+    img.alt = "Sponsor reklamı";
+    if (sponsorLinkUrl) {
+      const anchor = document.createElement("a");
+      anchor.href = sponsorLinkUrl;
+      anchor.target = "_blank";
+      anchor.rel = "noopener sponsored";
+      anchor.appendChild(img);
+      slot.appendChild(anchor);
+    } else {
+      slot.appendChild(img);
+    }
+  }
   try {
     const url = new URL(file, location.href);
     if (!["https:", "http:"].includes(url.protocol)) throw new Error("bad protocol");
     link.href = url.href;
     link.target = "_blank";
     link.rel = "noopener noreferrer nofollow";
+    link.setAttribute("aria-disabled", "true");
+    link.style.pointerEvents = "none";
+    link.style.opacity = ".45";
+
+    let remaining = 5;
+    const timer = document.getElementById("adTimer");
+    const tick = () => {
+      if (remaining > 0) {
+        timer.textContent = "Reklam gösteriliyor: " + remaining + " saniye";
+        remaining -= 1;
+        window.setTimeout(tick, 1000);
+      } else {
+        timer.textContent = "Reklam tamamlandı. İndirme bağlantısı açıldı.";
+        link.textContent = "Dosyayı indir ↓";
+        link.removeAttribute("aria-disabled");
+        link.style.pointerEvents = "auto";
+        link.style.opacity = "1";
+      }
+    };
+    tick();
   } catch (_) {
     link.hidden = true;
     document.getElementById("error").hidden = false;
