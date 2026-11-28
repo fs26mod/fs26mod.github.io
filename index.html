@@ -468,7 +468,7 @@ body.has-slider .search-wrap{margin-top:16px!important}
       <input id="upLink" type="url" placeholder="https://drive.google.com/..." style="display:none">
       <p id="linkNote" class="up-note" style="display:none">Modu Google Drive, Mediafire veya Mega'ya yükle, herkese açık indirme linkini buraya yapıştır. Oyun sürümünü ve kategoriyi aşağıdan seç.</p>
       <p id="catAuto" class="up-note" style="display:none"></p>
-      <p class="up-note">Sadece kendi yaptığın ya da paylaşma iznin olan modları yükle. Dosyalar virüs taramasından geçmez; günde en fazla 5 mod yükleyebilirsin.</p>
+      <p class="up-note">Sadece kendi yaptığın ya da paylaşma iznin olan modları yükle. Dosyalar virüs taramasından geçmez.</p>
       <button type="submit" id="upSubmit">Yükle</button>
     </form>
     <p id="upMsg"></p>
@@ -2915,11 +2915,6 @@ uploadForm.addEventListener("submit", async (event) => {
   const imgFiles = [...document.getElementById("upImage").files];
   if (imgFiles.length < 1) { upMsg.textContent = "En az 1 fotoğraf seçmelisin."; return; }
   if (imgFiles.length > 10) { upMsg.textContent = "En fazla 10 fotoğraf seçebilirsin."; return; }
-  if (!isAdmin && currentUid) {
-    const since = new Date(Date.now() - 864e5).toISOString();
-    const lim = await supabaseClient.from("mods").select("id", { count: "exact", head: true }).eq("owner_id", currentUid).gte("created_at", since);
-    if (!lim.error && (lim.count || 0) >= 5) { upMsg.textContent = "Günlük yükleme sınırına (5 mod) ulaştın. Yarın tekrar dene."; return; }
-  }
   upSubmit.disabled = true;
   upMsg.textContent = "Yükleniyor...";
   try {
